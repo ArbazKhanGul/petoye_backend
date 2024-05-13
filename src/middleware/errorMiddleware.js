@@ -1,5 +1,5 @@
 
-const AppError = require('../er');
+const AppError = require('../errors/appError');
 
 const errorMiddleware = (err, req, res, next) => {
     // Check if the error is an instance of AppError
