@@ -44,11 +44,12 @@ const signupSchema = z.object({
       message: "Country must only contain letters and spaces",
     }),
   phoneNumber: z
-    .string({ required_error: "Phone number is required" })
+    .string()
     .trim()
     .min(8, { message: "Phone number must be at least 8 digits" })
     .max(15, { message: "Phone number must be at most 15 digits" })
-    .regex(/^\d+$/, { message: "Phone number must contain only digits" }),
+    .regex(/^\d+$/, { message: "Phone number must contain only digits" })
+    .optional(),
 });
 
 const updateProfileSchema = z.object({

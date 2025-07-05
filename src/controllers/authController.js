@@ -1,6 +1,7 @@
 const AppError = require("../errors/appError");
 const User = require("../models/user.model");
 const Otp = require("../models/otp.model");
+const SessionToken = require("../models/sessionToken.model");
 const { sendEmail } = require("../helpers/emailHelper");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
@@ -8,18 +9,23 @@ const { OAuth2Client } = require("google-auth-library");
 const GOOGLE_CLIENT_ID_ANDROID = process.env.GOOGLE_CLIENT_ID_ANDROID;
 const GOOGLE_CLIENT_ID_IOS = process.env.GOOGLE_CLIENT_ID_IOS;
 const googleClient = new OAuth2Client();
+const ms = require("../helpers/ms");
 
 exports.register = async (req, res, next) => {
   try {
     const { fullName, email, password, dateOfBirth, country, phoneNumber } =
       req.body;
 
-    // Check for existing email or phone
-    const existingUser = await User.findOne({
-      $or: [{ email }, { phoneNumber }],
-    });
+    // Check for existing email
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return next(new AppError("Email or phone number already exists", 409));
+      if (!existingUser.emailVerify) {
+        // Delete unverified user with same email
+        await User.deleteOne({ _id: existingUser._id });
+        await Otp.deleteMany({ userId: existingUser._id }); // Clean up old OTPs
+      } else {
+        return next(new AppError("Email already exists", 409));
+      }
     }
 
     // Create user
@@ -29,14 +35,8 @@ exports.register = async (req, res, next) => {
       password,
       dateOfBirth,
       country,
-      phoneNumber,
+      phoneNumber, // can be undefined
     });
-    await user.save();
-
-    // Generate auth token
-    const token = await user.generateAuthToken();
-    const refreshToken = await user.generateRefreshToken();
-    user.refreshTokens.push(refreshToken);
     await user.save();
 
     // Generate OTP (6 digit)
@@ -65,8 +65,6 @@ exports.register = async (req, res, next) => {
     res.status(201).json({
       message: "User created successfully. OTP sent to email.",
       user: userObj,
-      token,
-      refreshToken,
     });
   } catch (err) {
     if (err.name === "ValidationError") {
@@ -78,7 +76,8 @@ exports.register = async (req, res, next) => {
 
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, deviceModel, osVersion, appVersion, deviceType } =
+      req.body;
     const user = await User.findOne({ email });
     if (!user) {
       return next(new AppError("Invalid email or password", 401));
@@ -97,6 +96,19 @@ exports.login = async (req, res, next) => {
     const refreshToken = await user.generateRefreshToken();
     user.refreshTokens.push(refreshToken);
     await user.save();
+    // Store session in SessionToken collection (no FCM token)
+    await SessionToken.create({
+      userId: user._id,
+      authToken: token,
+      refreshToken,
+      deviceModel: deviceModel || null,
+      osVersion: osVersion || null,
+      deviceType: deviceType || null,
+      appVersion: appVersion || null,
+      expiresAt: new Date(
+        Date.now() + ms(process.env.AUTH_TOKEN_EXPIRES_IN || "1d")
+      ),
+    });
     const userObj = user.toObject();
     delete userObj.password;
     delete userObj.refreshTokens;
@@ -132,6 +144,21 @@ exports.refreshToken = async (req, res, next) => {
     user.refreshTokens.push(newRefreshToken);
     await user.save();
     const newToken = await user.generateAuthToken();
+
+    // Update the existing session (SessionToken) with new tokens and expiry
+    const session = await SessionToken.findOne({
+      userId: user._id,
+      refreshToken,
+    });
+    if (session) {
+      session.authToken = newToken;
+      session.refreshToken = newRefreshToken;
+      session.expiresAt = new Date(
+        Date.now() + ms(process.env.AUTH_TOKEN_EXPIRES_IN || "1d")
+      ); // 1 day
+      await session.save();
+    }
+
     res.status(200).json({ token: newToken, refreshToken: newRefreshToken });
   } catch (err) {
     next(new AppError("Could not refresh token", 400));
@@ -141,20 +168,31 @@ exports.refreshToken = async (req, res, next) => {
 // Logout endpoint
 exports.logout = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
-      return next(new AppError("Refresh token is required", 400));
+    // Get session from authMiddleware
+    const session = req.session;
+    if (!session) {
+      return next(new AppError("Session not found", 401));
     }
-    const payload = User.verifyRefreshToken(refreshToken);
-    if (!payload) {
-      return next(new AppError("Invalid or expired refresh token", 401));
-    }
-    const user = await User.findById(payload._id);
+    const user = await User.findById(session.userId);
     if (!user) {
       return next(new AppError("User not found", 404));
     }
-    user.refreshTokens = user.refreshTokens.filter((t) => t !== refreshToken);
+    // Remove refresh token from user
+    if (session.refreshToken) {
+      user.refreshTokens = user.refreshTokens.filter(
+        (t) => t !== session.refreshToken
+      );
+    }
+    // Remove FCM token from user
+    if (session.fcmToken) {
+      user.fcmTokens = user.fcmTokens.filter((t) => t !== session.fcmToken);
+    }
     await user.save();
+    // Soft delete session: set revoked and revokedAt
+    await SessionToken.updateOne(
+      { _id: session._id },
+      { $set: { revoked: true, revokedAt: new Date() } }
+    );
     res.status(200).json({ message: "Logout successful" });
   } catch (err) {
     next(new AppError("Logout failed", 400));
@@ -274,17 +312,27 @@ exports.updateProfile = async (req, res, next) => {
 
 exports.addFcmToken = async (req, res, next) => {
   try {
-    const { userId, fcmToken } = req.body;
-    if (!userId || !fcmToken) {
-      return next(new AppError("User ID and FCM token are required", 400));
+    const userId = req.user._id;
+    const { fcmToken } = req.body;
+    if (!fcmToken) {
+      return next(new AppError("FCM token is required", 400));
     }
     const user = await User.findById(userId);
     if (!user) {
       return next(new AppError("User not found", 404));
     }
+    // Add FCM token to user if not present
     if (!user.fcmTokens.includes(fcmToken)) {
       user.fcmTokens.push(fcmToken);
       await user.save();
+    }
+    // Update the current session's SessionToken with the FCM token
+    if (req.headers["authorization"]) {
+      const token = req.headers["authorization"].split(" ")[1];
+      await SessionToken.updateOne(
+        { userId, authToken: token },
+        { $set: { fcmToken } }
+      );
     }
     res.status(200).json({ message: "FCM token added successfully" });
   } catch (err) {
@@ -294,7 +342,8 @@ exports.addFcmToken = async (req, res, next) => {
 
 exports.googleLogin = async (req, res, next) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, deviceModel, osVersion, appVersion, deviceType } =
+      req.body;
     if (!idToken) {
       return next(new AppError("Google ID token is required", 400));
     }
@@ -329,6 +378,19 @@ exports.googleLogin = async (req, res, next) => {
     const refreshToken = await user.generateRefreshToken();
     user.refreshTokens.push(refreshToken);
     await user.save();
+    // Store session in SessionToken collection (no FCM token)
+    await SessionToken.create({
+      userId: user._id,
+      authToken: token,
+      refreshToken,
+      deviceModel: deviceModel || null,
+      osVersion: osVersion || null,
+      deviceType: deviceType || null,
+      appVersion: appVersion || null,
+      expiresAt: new Date(
+        Date.now() + ms(process.env.AUTH_TOKEN_EXPIRES_IN || "1d")
+      ),
+    });
     const userObj = user.toObject();
     delete userObj.password;
     delete userObj.refreshTokens;
@@ -440,6 +502,8 @@ exports.forgotPasswordReset = async (req, res, next) => {
     }
     user.password = newPassword;
     await user.save();
+    // Delete the OTP document after successful password reset
+    await Otp.deleteOne({ _id: otpDoc._id });
     res.status(200).json({ message: "Password reset successful" });
   } catch (err) {
     next(new AppError("Password reset failed", 400));

@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const AppError = require("../errors/appError");
-const User = require("../models/user.model");
+const SessionToken = require("../models/sessionToken.model");
 
 module.exports = async function (req, res, next) {
   try {
@@ -18,11 +18,18 @@ module.exports = async function (req, res, next) {
     } catch (err) {
       return next(new AppError("Invalid or expired token", 401));
     }
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return next(new AppError("User not found", 401));
+    // Only check session, don't query user
+    const session = await SessionToken.findOne({
+      userId: decoded.id,
+      authToken: token,
+      revoked: false,
+      expiresAt: { $gt: new Date() },
+    });
+    if (!session) {
+      return next(new AppError("Session invalid or logged out", 401));
     }
-    req.user = user;
+    req.user = { _id: decoded.id, id: decoded.id, role: decoded.role };
+    req.session = session;
     next();
   } catch (err) {
     next(err);

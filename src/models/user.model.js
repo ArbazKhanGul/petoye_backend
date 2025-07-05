@@ -32,8 +32,6 @@ const userSchema = new Schema(
     },
     phoneNumber: {
       type: String,
-      required: true,
-      unique: true,
       trim: true,
     },
     role: {
@@ -67,16 +65,17 @@ userSchema.methods.generateAuthToken = async function () {
   return jwt.sign(
     { _id: this._id, role: this.role },
     process.env.SECRET_KEY_JSON_WEB_TOKEN_LOGIN,
-    { expiresIn: "7d" }
+    { expiresIn: "1d" }
   );
 };
 
 // Generate Refresh Token
 userSchema.methods.generateRefreshToken = async function () {
+  const ms = require("../helpers/ms");
   return jwt.sign(
     { _id: this._id, role: this.role },
     process.env.SECRET_KEY_JSON_WEB_TOKEN_REFRESH,
-    { expiresIn: "30d" }
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || "7d" }
   );
 };
 

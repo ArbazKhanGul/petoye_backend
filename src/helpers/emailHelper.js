@@ -17,7 +17,7 @@ async function sendEmail({ to, subject, text, html }) {
     text,
     html,
   };
-  await sgMail.send(msg);
+  // await sgMail.send(msg);
 }
 
 module.exports = { sendEmail };

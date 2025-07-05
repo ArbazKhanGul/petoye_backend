@@ -12,6 +12,7 @@ const {
 const authController = require("../controllers/authController");
 const upload = require("../middleware/multer");
 const authMiddleware = require("../middleware/authMiddleware");
+const logoutSchema = require("../validation/logoutSchema");
 
 const router = express.Router();
 
@@ -50,8 +51,39 @@ router.route("/register").post(validate(signupSchema), authController.register);
  *     responses:
  *       200:
  *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UserResponse'
+ *             examples:
+ *               success:
+ *                 value:
+ *                   message: Login successful
+ *                   user:
+ *                     _id: "userId123"
+ *                     fullName: "John Doe"
+ *                     email: "john@example.com"
+ *                     dateOfBirth: "1990-01-01"
+ *                     country: "India"
+ *                     phoneNumber: "9876543210"
+ *                     role: "user"
+ *                     profileImage: "/images/profile.png"
+ *                     emailVerify: true
+ *                   token: "<JWT access token>"
+ *                   refreshToken: "<JWT refresh token>"
  *       401:
  *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               error:
+ *                 value:
+ *                   message: Invalid email or password
  */
 router.route("/login").post(authController.login);
 
@@ -59,22 +91,39 @@ router.route("/login").post(authController.login);
  * @swagger
  * /api/auth/logout:
  *   post:
- *     summary: Logout user (removes refresh token)
+ *     summary: Logout user (soft deletes session)
  *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               refreshToken:
- *                 type: string
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               success:
+ *                 value:
+ *                   message: Logout successful
+ *       401:
+ *         description: Session invalid or already logged out
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               error:
+ *                 value:
+ *                   message: Session invalid or logged out
  */
-router.route("/logout").post(authController.logout);
+router.route("/logout").post(validate(logoutSchema), authController.logout);
 
 /**
  * @swagger
@@ -94,6 +143,33 @@ router.route("/logout").post(authController.logout);
  *     responses:
  *       200:
  *         description: Token refreshed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                 refreshToken:
+ *                   type: string
+ *             examples:
+ *               success:
+ *                 value:
+ *                   token: "<new JWT access token>"
+ *                   refreshToken: "<new JWT refresh token>"
+ *       401:
+ *         description: Invalid or expired refresh token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               error:
+ *                 value:
+ *                   message: Invalid or expired refresh token
  */
 router.route("/refresh-token").post(authController.refreshToken);
 
@@ -210,9 +286,50 @@ router
  *             properties:
  *               idToken:
  *                 type: string
+ *               deviceModel:
+ *                 type: string
+ *               osVersion:
+ *                 type: string
+ *               deviceType:
+ *                 type: string
+ *               appVersion:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Google login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UserResponse'
+ *             examples:
+ *               success:
+ *                 value:
+ *                   message: Google login successful
+ *                   user:
+ *                     _id: "userId123"
+ *                     fullName: "John Doe"
+ *                     email: "john@example.com"
+ *                     dateOfBirth: "1990-01-01"
+ *                     country: "India"
+ *                     phoneNumber: "9876543210"
+ *                     role: "user"
+ *                     profileImage: "https://lh3.googleusercontent.com/..."
+ *                     emailVerify: true
+ *                   token: "<JWT access token>"
+ *                   refreshToken: "<JWT refresh token>"
+ *       401:
+ *         description: Google authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               error:
+ *                 value:
+ *                   message: Google authentication failed
  */
 router.route("/google-login").post(authController.googleLogin);
 
