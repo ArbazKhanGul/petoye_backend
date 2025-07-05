@@ -1,19 +1,25 @@
 const multer = require("multer");
+const path = require("path");
 
-// set storeage
-
-var storege = multer.diskStorage({
+// set storage
+var storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "src/images");
+    cb(null, path.join(__dirname, "../../images")); // Save in /images at root
   },
-
   filename: function (req, file, cb) {
-    var ext = file.originalname.substr(file.originalname.lastIndexOf("."));
-    console.log(file.fieldname);
-    cb(null, file.fieldname + "-" + Date.now()+'-'+Math.round(Math.random() * 1E9)+ ext);
+    var ext = path.extname(file.originalname);
+    cb(
+      null,
+      file.fieldname +
+        "-" +
+        Date.now() +
+        "-" +
+        Math.round(Math.random() * 1e9) +
+        ext
+    );
   },
 });
 
-const store = multer({ storage: storege });
+const upload = multer({ storage });
 
-module.exports = store;
+module.exports = upload;

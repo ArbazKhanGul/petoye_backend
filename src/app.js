@@ -2,27 +2,28 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const errorMiddleware = require("./middleware/errorMiddleware");
-const auth=require("../src/routes/authRoute")
-require("./config/db")
+const auth = require("../src/routes/authRoute");
+const setupSwagger = require("../swagger");
+require("./config/db");
 
 const app = express();
 app.use(
   cors({
-    origin: ["*",process.env.CLIENT_URL],
+    origin: ["*", process.env.CLIENT_URL],
     credentials: true,
   })
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
 // Routes
-app.use('/api/auth', auth);
-
-app.get("/",(req,res)=>{
-  res.send("Welcome to the smart cab")
+app.use("/api/auth", auth);
+app.get("/", (req, res) => {
+  res.send("Welcome to the petoye backend API");
 });
 
+// Swagger UI setup
+setupSwagger(app);
 
 //Error Handling
 app.use(errorMiddleware);
