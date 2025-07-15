@@ -10,7 +10,7 @@ const {
   TokenTransaction,
   RewardConfig,
 } = require("../models");
-const { sendEmail, ms } = require("../helpers");
+const { ms, sendOtpEmail } = require("../helpers");
 const GOOGLE_CLIENT_ID_ANDROID = process.env.GOOGLE_CLIENT_ID_ANDROID;
 const GOOGLE_CLIENT_ID_IOS = process.env.GOOGLE_CLIENT_ID_IOS;
 const googleClient = new OAuth2Client();
@@ -83,7 +83,7 @@ exports.register = async (req, res, next) => {
     });
 
     // Send OTP email
-    await require("../helpers").sendPetoyeOtpEmail({
+    await sendOtpEmail({
       to: user.email,
       otpValue,
       purpose: "verify your email",
@@ -324,7 +324,7 @@ exports.resendOtp = async (req, res, next) => {
       value: otpValue,
       expiration,
     });
-    await require("../helpers").sendPetoyeOtpEmail({
+    await sendOtpEmail({
       to: user.email,
       otpValue,
       purpose: "verify your email",
@@ -502,7 +502,7 @@ exports.forgotPasswordSendOtp = async (req, res, next) => {
       value: otpValue,
       expiration,
     });
-    await require("../helpers").sendPetoyeOtpEmail({
+    await sendOtpEmail({
       to: user.email,
       otpValue,
       purpose: "reset your password",
