@@ -50,6 +50,11 @@ const signupSchema = z.object({
     .max(15, { message: "Phone number must be at most 15 digits" })
     .regex(/^\d+$/, { message: "Phone number must contain only digits" })
     .optional(),
+  referralCode: z
+    .string()
+    .trim()
+    .length(8, { message: "Referral code must be 8 characters" })
+    .optional(),
 });
 
 const updateProfileSchema = z.object({

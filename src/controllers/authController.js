@@ -1,20 +1,31 @@
-const AppError = require("../errors/appError");
-const User = require("../models/user.model");
-const Otp = require("../models/otp.model");
-const SessionToken = require("../models/sessionToken.model");
-const { sendEmail } = require("../helpers/emailHelper");
-const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
+const AppError = require("../errors/appError");
+const {
+  User,
+  Otp,
+  SessionToken,
+  Referral,
+  TokenTransaction,
+  RewardConfig,
+} = require("../models");
+const { sendEmail, ms } = require("../helpers");
 const GOOGLE_CLIENT_ID_ANDROID = process.env.GOOGLE_CLIENT_ID_ANDROID;
 const GOOGLE_CLIENT_ID_IOS = process.env.GOOGLE_CLIENT_ID_IOS;
 const googleClient = new OAuth2Client();
-const ms = require("../helpers/ms");
 
 exports.register = async (req, res, next) => {
   try {
-    const { fullName, email, password, dateOfBirth, country, phoneNumber } =
-      req.body;
+    const {
+      fullName,
+      email,
+      password,
+      dateOfBirth,
+      country,
+      phoneNumber,
+      inviteReferralCode,
+    } = req.body;
 
     // Check for existing email
     const existingUser = await User.findOne({ email });
@@ -28,7 +39,15 @@ exports.register = async (req, res, next) => {
       }
     }
 
-    // Create user
+    // Generate unique referral code (e.g., 8-char alphanumeric)
+    let referralCode;
+    let codeExists = true;
+    while (codeExists) {
+      referralCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      codeExists = await User.findOne({ referralCode });
+    }
+
+    // Create user with referralCode
     const user = new User({
       fullName,
       email,
@@ -36,8 +55,22 @@ exports.register = async (req, res, next) => {
       dateOfBirth,
       country,
       phoneNumber, // can be undefined
+      referralCode,
     });
     await user.save();
+
+    // If inviteReferralCode is provided, create a referral record
+    if (inviteReferralCode) {
+      const referrer = await User.findOne({ referralCode: inviteReferralCode });
+      if (referrer) {
+        await Referral.create({
+          referrer: referrer._id,
+          referee: user._id,
+          referralCode: inviteReferralCode,
+          status: "pending",
+        });
+      }
+    }
 
     // Generate OTP (6 digit)
     const otpValue = Math.floor(100000 + Math.random() * 900000).toString();
@@ -50,11 +83,10 @@ exports.register = async (req, res, next) => {
     });
 
     // Send OTP email
-    await sendEmail({
+    await require("../helpers").sendPetoyeOtpEmail({
       to: user.email,
-      subject: "Your OTP Code",
-      text: `Your OTP code is: ${otpValue}`,
-      html: `<p>Your OTP code is: <b>${otpValue}</b></p>`,
+      otpValue,
+      purpose: "verify your email",
     });
 
     // Return user info (omit password)
@@ -220,6 +252,34 @@ exports.verifyOtp = async (req, res, next) => {
     await otpDoc.save();
     user.emailVerify = true;
     await user.save();
+
+    // Award referral if this user was referred and not already rewarded
+    const referral = await Referral.findOne({
+      referee: user._id,
+      status: "pending",
+    });
+    if (referral) {
+      referral.status = "rewarded";
+      referral.rewardedAt = new Date();
+      await referral.save();
+      // Fetch referral reward amount from RewardConfig
+      let rewardAmount = 0; // fallback default
+      const rewardConfig = await RewardConfig.findOne({ action: "referral" });
+      if (rewardConfig && typeof rewardConfig.amount === "number") {
+        rewardAmount = rewardConfig.amount;
+      }
+      await User.findByIdAndUpdate(referral.referrer, {
+        $inc: { tokens: rewardAmount },
+      });
+      // Log token transaction
+      await TokenTransaction.create({
+        user: referral.referrer,
+        amount: rewardAmount,
+        type: "referral",
+        relatedId: referral._id,
+      });
+    }
+
     res.status(200).json({ message: "OTP verified successfully" });
   } catch (err) {
     next(new AppError("OTP verification failed", 400));
@@ -264,11 +324,10 @@ exports.resendOtp = async (req, res, next) => {
       value: otpValue,
       expiration,
     });
-    await sendEmail({
+    await require("../helpers").sendPetoyeOtpEmail({
       to: user.email,
-      subject: "Your OTP Code",
-      text: `Your OTP code is: ${otpValue}`,
-      html: `<p>Your OTP code is: <b>${otpValue}</b></p>`,
+      otpValue,
+      purpose: "verify your email",
     });
     res.status(200).json({ message: "OTP resent successfully" });
   } catch (err) {
@@ -443,11 +502,11 @@ exports.forgotPasswordSendOtp = async (req, res, next) => {
       value: otpValue,
       expiration,
     });
-    await sendEmail({
+    await require("../helpers").sendPetoyeOtpEmail({
       to: user.email,
+      otpValue,
+      purpose: "reset your password",
       subject: "Your Password Reset OTP",
-      text: `Your password reset OTP is: ${otpValue}`,
-      html: `<p>Your password reset OTP is: <b>${otpValue}</b></p>`,
     });
     res.status(200).json({ message: "Password reset OTP sent to email" });
   } catch (err) {

@@ -56,6 +56,18 @@ const userSchema = new Schema(
       type: [String],
       default: [],
     },
+    // Referral system fields
+    referralCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+    // Token system
+    tokens: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

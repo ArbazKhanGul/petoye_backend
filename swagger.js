@@ -42,6 +42,11 @@ const options = {
             dateOfBirth: { type: "string", example: "1990-01-01" },
             country: { type: "string", example: "India" },
             phoneNumber: { type: "string", example: "9876543210" },
+            inviteReferralCode: {
+              type: "string",
+              example: "ABCDEFGH",
+              description: "Optional referral code from another user",
+            },
           },
         },
         Login: {
@@ -78,6 +83,16 @@ const options = {
                 role: { type: "string" },
                 profileImage: { type: "string" },
                 emailVerify: { type: "boolean" },
+                referralCode: {
+                  type: "string",
+                  example: "ABCDEFGH",
+                  description: "User's unique referral code",
+                },
+                tokens: {
+                  type: "number",
+                  example: 10,
+                  description: "User's current token balance",
+                },
               },
             },
             token: { type: "string" },
