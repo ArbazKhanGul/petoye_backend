@@ -1,8 +1,18 @@
-const sgMail = require("@sendgrid/mail");
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const nodemailer = require("nodemailer");
+
+// Create reusable transporter using GoDaddy SMTP
+const transporter = nodemailer.createTransport({
+  host: process.env.GODADDY_SMTP_HOST || "smtpout.secureserver.net",
+  port: process.env.GODADDY_SMTP_PORT || 465,
+  secure: true, // true for 465, false for 587
+  auth: {
+    user: process.env.GODADDY_SMTP_USER,
+    pass: process.env.GODADDY_SMTP_PASS,
+  },
+});
 
 /**
- * Send an email using SendGrid
+ * Send an email using GoDaddy SMTP
  * @param {string} to - Recipient email address
  * @param {string} subject - Email subject
  * @param {string} text - Plain text content
@@ -10,14 +20,14 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
  * @returns {Promise<void>}
  */
 async function sendEmail({ to, subject, text, html }) {
-  const msg = {
+  const mailOptions = {
+    from: process.env.GODADDY_FROM_EMAIL, // Must be your GoDaddy sender
     to,
-    from: process.env.SENDGRID_FROM_EMAIL, // Must be verified sender
     subject,
     text,
     html,
   };
-  // await sgMail.send(msg);
+  await transporter.sendMail(mailOptions);
 }
 
 module.exports = { sendEmail };
