@@ -22,7 +22,6 @@ app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
 });
 
-// Swagger UI setup
 setupSwagger(app);
 
 //Error Handling
