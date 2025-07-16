@@ -123,7 +123,11 @@ router.route("/login").post(authController.login);
  *                 value:
  *                   message: Session invalid or logged out
  */
-router.route("/logout").post(validate(logoutSchema), authController.logout);
+const refreshTokenMiddleware = require("../middleware/refreshTokenMiddleware");
+
+router
+  .route("/logout")
+  .post(validate(logoutSchema), refreshTokenMiddleware, authController.logout);
 
 /**
  * @swagger
@@ -447,5 +451,36 @@ router
     validate(updatePasswordSchema),
     authController.updatePassword
   );
+
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   get:
+ *     summary: Get user profile
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Not authorized
+ *       404:
+ *         description: User not found
+ */
+router.route("/profile").get(authMiddleware, authController.getProfile);
 
 module.exports = router;

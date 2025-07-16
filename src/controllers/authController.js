@@ -200,33 +200,46 @@ exports.refreshToken = async (req, res, next) => {
 // Logout endpoint
 exports.logout = async (req, res, next) => {
   try {
-    // Get session from authMiddleware
-    const session = req.session;
-    if (!session) {
-      return next(new AppError("Session not found", 401));
-    }
-    const user = await User.findById(session.userId);
-    if (!user) {
-      return next(new AppError("User not found", 404));
-    }
-    // Remove refresh token from user
-    if (session.refreshToken) {
-      user.refreshTokens = user.refreshTokens.filter(
-        (t) => t !== session.refreshToken
-      );
-    }
-    // Remove FCM token from user
+    // These values are guaranteed to be set by refreshTokenMiddleware
+    const { user, session, refreshToken } = req;
+
+    // Remove refresh token from user's tokens array
+    user.refreshTokens = user.refreshTokens.filter(
+      (token) => token !== refreshToken
+    );
+
+    // If this session has an FCM token, also remove it from the user's fcmTokens array
     if (session.fcmToken) {
-      user.fcmTokens = user.fcmTokens.filter((t) => t !== session.fcmToken);
+      user.fcmTokens = user.fcmTokens.filter(
+        (token) => token !== session.fcmToken
+      );
+
+      // Update the user document with both refreshToken and fcmToken changes
+      await User.findByIdAndUpdate(user._id, {
+        refreshTokens: user.refreshTokens,
+        fcmTokens: user.fcmTokens,
+      });
+    } else {
+      // Just update the refreshTokens if no FCM token in the session
+      await User.findByIdAndUpdate(user._id, {
+        refreshTokens: user.refreshTokens,
+      });
     }
-    await user.save();
-    // Soft delete session: set revoked and revokedAt
+
+    // Mark the session as revoked and clear its FCM token
     await SessionToken.updateOne(
       { _id: session._id },
-      { $set: { revoked: true, revokedAt: new Date() } }
+      {
+        $set: {
+          revoked: true,
+          revokedAt: new Date(),
+        },
+      }
     );
+
     res.status(200).json({ message: "Logout successful" });
   } catch (err) {
+    console.error("Logout error:", err);
     next(new AppError("Logout failed", 400));
   }
 };
@@ -369,32 +382,87 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
+exports.getProfile = async (req, res, next) => {
+  try {
+    // Get user ID from auth middleware - support both auth middleware and manual ID
+    const userId = req.user?._id || req.body.userId;
+
+    if (!userId) {
+      return next(new AppError("User ID is required", 400));
+    }
+
+    // Find user by ID but exclude sensitive fields
+    const user = await User.findById(userId).select("-password -refreshTokens");
+
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    // Convert to plain object
+    const userObj = user.toObject();
+
+    // Return user data
+    res.status(200).json({
+      status: "success",
+      data: {
+        user: userObj,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching user profile:", err);
+    next(new AppError("Failed to fetch profile", 500));
+  }
+};
+
 exports.addFcmToken = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { fcmToken } = req.body;
+
     if (!fcmToken) {
       return next(new AppError("FCM token is required", 400));
     }
+
+    console.log(
+      `Adding FCM token for user ${userId}: ${fcmToken.slice(0, 10)}...`
+    );
+
     const user = await User.findById(userId);
     if (!user) {
       return next(new AppError("User not found", 404));
     }
+
     // Add FCM token to user if not present
     if (!user.fcmTokens.includes(fcmToken)) {
       user.fcmTokens.push(fcmToken);
       await user.save();
+      console.log(
+        `Added new FCM token to user ${userId}'s fcmTokens array. Current count: ${user.fcmTokens.length}`
+      );
+    } else {
+      console.log(
+        `FCM token already exists in user ${userId}'s fcmTokens array`
+      );
     }
+
     // Update the current session's SessionToken with the FCM token
     if (req.headers["authorization"]) {
       const token = req.headers["authorization"].split(" ")[1];
-      await SessionToken.updateOne(
+      const sessionUpdate = await SessionToken.updateOne(
         { userId, authToken: token },
         { $set: { fcmToken } }
       );
+
+      if (sessionUpdate.modifiedCount > 0) {
+        console.log(`Updated session FCM token for user ${userId}`);
+      } else {
+        console.log(`No session found or no change needed for user ${userId}`);
+      }
     }
+
     res.status(200).json({ message: "FCM token added successfully" });
   } catch (err) {
+    console.error("Error adding FCM token:", err);
     next(new AppError("Could not add FCM token", 400));
   }
 };

@@ -16,6 +16,17 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Middleware to log all incoming requests
+app.use((req, res, next) => {
+  console.log("Incoming Request:", {
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+    body: req.body,
+  });
+  next(); // Pass control to the next middleware
+});
+
 // Routes
 app.use("/api/auth", auth);
 app.get("/", (req, res) => {

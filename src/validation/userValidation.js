@@ -12,7 +12,6 @@ const signupSchema = z.object({
   fullName: z
     .string({ required_error: "Full name is required" })
     .trim()
-    .min(3, { message: "Full name must be at least 3 characters" })
     .max(255, { message: "Full name cannot be more than 255 characters" }),
   email: z
     .string({ required_error: "Email is required" })

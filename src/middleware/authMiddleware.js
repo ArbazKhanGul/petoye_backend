@@ -14,13 +14,14 @@ module.exports = async function (req, res, next) {
     }
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, process.env.SECRET_KEY_JSON_WEB_TOKEN_LOGIN);
     } catch (err) {
+      console.error("Token verification error:", err.message);
       return next(new AppError("Invalid or expired token", 401));
     }
     // Only check session, don't query user
     const session = await SessionToken.findOne({
-      userId: decoded.id,
+      userId: decoded._id,
       authToken: token,
       revoked: false,
       expiresAt: { $gt: new Date() },
@@ -28,10 +29,12 @@ module.exports = async function (req, res, next) {
     if (!session) {
       return next(new AppError("Session invalid or logged out", 401));
     }
-    req.user = { _id: decoded.id, id: decoded.id, role: decoded.role };
+    // Use only _id for consistency across the application
+    req.user = { _id: decoded._id, role: decoded.role };
     req.session = session;
     next();
   } catch (err) {
+    console.error("Auth middleware error:", err);
     next(err);
   }
 };
