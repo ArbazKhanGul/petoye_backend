@@ -479,6 +479,7 @@ exports.googleLogin = async (req, res, next) => {
       audience: [GOOGLE_CLIENT_ID_ANDROID, GOOGLE_CLIENT_ID_IOS],
     });
     const payload = ticket.getPayload();
+    console.log("🚀 ~ exports.googleLogin= ~ payload:", payload);
     if (!payload?.email) {
       return next(new AppError("Google authentication failed", 401));
     }
@@ -518,6 +519,7 @@ exports.googleLogin = async (req, res, next) => {
         Date.now() + ms(process.env.AUTH_TOKEN_EXPIRES_IN || "1d")
       ),
     });
+
     const userObj = user.toObject();
     delete userObj.password;
     delete userObj.refreshTokens;
@@ -528,6 +530,7 @@ exports.googleLogin = async (req, res, next) => {
       refreshToken,
     });
   } catch (err) {
+    console.log("🚀 ~ exports.googleLogin= ~ err:", err);
     next(new AppError("Google login failed", 400));
   }
 };

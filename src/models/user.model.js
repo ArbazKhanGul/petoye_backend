@@ -19,15 +19,15 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: true,
+      // required: true,
     },
     dateOfBirth: {
       type: Date,
-      required: true,
+      // required: true,
     },
     country: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
     },
     phoneNumber: {

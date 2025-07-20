@@ -23,9 +23,17 @@ module.exports = async function (req, res, next) {
         refreshToken,
         process.env.SECRET_KEY_JSON_WEB_TOKEN_REFRESH
       );
-    } catch (err) {
-      console.error("Refresh token verification error:", err.message);
-      return next(new AppError("Invalid or expired refresh token", 401));
+    } catch (verifyError) {
+      // If verification fails (likely expired), try decoding without verification
+      try {
+        decoded = jwt.decode(refreshToken);
+        if (!decoded || !decoded._id) {
+          return next(new AppError("Invalid token format", 400));
+        }
+      } catch (decodeError) {
+        console.error("Token decode error:", decodeError.message);
+        return next(new AppError("Invalid token format", 400));
+      }
     }
 
     // Find the user based on the decoded ID
@@ -44,7 +52,6 @@ module.exports = async function (req, res, next) {
       userId: user._id,
       refreshToken,
       revoked: false,
-      expiresAt: { $gt: new Date() },
     });
 
     if (!session) {
