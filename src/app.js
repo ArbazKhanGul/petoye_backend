@@ -1,8 +1,10 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const auth = require("../src/routes/authRoute");
+const posts = require("../src/routes/postRoute");
 const setupSwagger = require("../swagger");
 require("./config/db");
 
@@ -27,8 +29,12 @@ app.use((req, res, next) => {
   next(); // Pass control to the next middleware
 });
 
+// Serve static files
+app.use("/images", express.static(path.join(__dirname, "../images")));
+
 // Routes
 app.use("/api/auth", auth);
+app.use("/api/posts", posts);
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
 });

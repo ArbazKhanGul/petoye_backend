@@ -3,6 +3,7 @@ const Otp = require("./otp.model");
 const SessionToken = require("./sessionToken.model");
 const Referral = require("./referral.model");
 const TokenTransaction = require("./tokenTransaction.model");
+const Post = require("./post.model");
 
 module.exports = {
   User,
@@ -10,4 +11,5 @@ module.exports = {
   SessionToken,
   Referral,
   TokenTransaction,
+  Post,
 };
