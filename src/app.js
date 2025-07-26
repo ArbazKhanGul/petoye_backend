@@ -29,6 +29,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use("/api/auth", auth);
+app.use("/api/pets", require("./routes/petRoute"));
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
 });
