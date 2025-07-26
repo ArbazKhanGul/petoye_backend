@@ -99,6 +99,60 @@ const options = {
             refreshToken: { type: "string" },
           },
         },
+        CreatePost: {
+          type: "object",
+          properties: {
+            content: {
+              type: "string",
+              example: "This is my new post!",
+            },
+            mediaFiles: {
+              type: "array",
+              items: {
+                type: "string",
+                format: "binary",
+              },
+              description:
+                "Media files (images/videos) for the post, up to 3 files",
+            },
+          },
+        },
+        Post: {
+          type: "object",
+          properties: {
+            _id: { type: "string" },
+            userId: {
+              type: "object",
+              properties: {
+                _id: { type: "string" },
+                fullName: { type: "string" },
+                profileImage: { type: "string" },
+              },
+            },
+            content: { type: "string" },
+            mediaFiles: {
+              type: "array",
+              items: { type: "string" },
+            },
+            likes: {
+              type: "array",
+              items: { type: "string" },
+            },
+            comments: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  userId: { type: "string" },
+                  content: { type: "string" },
+                  createdAt: { type: "string", format: "date-time" },
+                },
+              },
+            },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
       },
     },
     security: [{ bearerAuth: [] }],
