@@ -9,9 +9,8 @@ const petListingSchema = new Schema(
       trim: true,
     },
     price: {
-      type: String, // Store as string to preserve exact format
+      type: Number,
       required: true,
-      trim: true,
     },
     currencyCode: {
       type: String,
@@ -27,13 +26,17 @@ const petListingSchema = new Schema(
       type: String,
       trim: true,
     },
+    location: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     type: {
       type: String,
       trim: true,
     },
     age: {
-      type: String,
-      trim: true,
+      type: Number,
     },
     weight: {
       type: String,
@@ -57,7 +60,7 @@ const petListingSchema = new Schema(
     ],
     mediaFiles: [
       {
-        uri: {
+        url: {
           type: String,
           required: true,
         },
@@ -71,6 +74,10 @@ const petListingSchema = new Schema(
         },
         size: {
           type: Number,
+        },
+        // Optional thumbnail for videos
+        thumbnail: {
+          type: String,
         },
       },
     ],

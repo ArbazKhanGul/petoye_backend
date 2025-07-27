@@ -13,8 +13,19 @@ const postSchema = new mongoose.Schema(
     },
     mediaFiles: [
       {
-        type: String, // paths to media files
-        required: false,
+        url: {
+          type: String, // path to media file
+          required: true,
+        },
+        type: {
+          type: String, // "image" or "video"
+          required: true,
+          enum: ["image", "video"],
+        },
+        thumbnail: {
+          type: String, // path to thumbnail image for videos
+          required: false,
+        },
       },
     ],
     likes: [

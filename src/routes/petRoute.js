@@ -2,6 +2,8 @@ const express = require("express");
 const validate = require("../middleware/validateMiddleware");
 const { petListingSchema } = require("../validation/petValidation");
 const petController = require("../controllers/petController");
+
+const upload = require("../middleware/multer");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -30,10 +32,15 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
+
 router
   .route("/")
   .post(
     authMiddleware,
+    upload.fields([
+      { name: "mediaFiles", maxCount: 3 },
+      { name: "thumbnails", maxCount: 3 },
+    ]),
     validate(petListingSchema),
     petController.createPetListing
   )

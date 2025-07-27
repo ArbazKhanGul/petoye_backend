@@ -30,7 +30,7 @@ app.use((req, res, next) => {
 });
 
 // Serve static files
-app.use("/images", express.static(path.join(__dirname, "../images")));
+app.use("/api/images", express.static(path.join(__dirname, "../images")));
 
 // Routes
 app.use("/api/auth", auth);

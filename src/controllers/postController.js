@@ -1,3 +1,61 @@
+/**
+ * Get all posts for the current user
+ * @route GET /api/posts/me
+ */
+exports.getMyPosts = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const totalPosts = await Post.countDocuments({ userId });
+    const posts = await Post.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "userId",
+        select: "fullName profileImage",
+      });
+
+    res.status(200).json({
+      message: "User's posts fetched successfully",
+      posts,
+      pagination: {
+        totalPosts,
+        totalPages: Math.ceil(totalPosts / limit),
+        currentPage: page,
+        limit,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get a post by ID
+ * @route GET /api/posts/:id
+ */
+exports.getPostById = async (req, res, next) => {
+  try {
+    const postId = req.params.id;
+    const post = await Post.findById(postId).populate({
+      path: "userId",
+      select: "fullName profileImage",
+    });
+    if (!post) {
+      return next(new AppError("Post not found", 404));
+    }
+    res.status(200).json({
+      message: "Post fetched successfully",
+      post,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 const { Post, User } = require("../models");
 const AppError = require("../errors/appError");
 const path = require("path");
@@ -11,18 +69,49 @@ exports.createPost = async (req, res, next) => {
   try {
     // Get user from authenticated middleware
     const userId = req.user._id;
+    console.log("🚀 ~ userId:", userId);
 
     // Get content from validated request body
-    const { content } = req.body;
+    const { content, mediaTypes } = req.body;
+    console.log("🚀 ~ mediaTypes:", mediaTypes);
+    console.log("🚀 ~ req.files:", req.files);
 
-    // Process uploaded files
+    // Process uploaded files robustly (handle single/multiple files)
     let mediaFiles = [];
-    if (req.files && req.files.length > 0) {
-      // Map file paths to relative URLs for storage in the database
-      mediaFiles = req.files.map((file) => {
-        // Store path relative to the /images/posts directory
+    if (req.files && (req.files["mediaFiles"] || req.files["thumbnails"])) {
+      let mediaArr = req.files["mediaFiles"] || [];
+      let thumbArr = req.files["thumbnails"] || [];
+      // If only one file, multer gives object not array
+      if (!Array.isArray(mediaArr)) mediaArr = [mediaArr];
+      if (!Array.isArray(thumbArr)) thumbArr = [thumbArr];
+      // Parse mediaTypes if sent as JSON string
+      let parsedMediaTypes = mediaTypes;
+      if (typeof mediaTypes === "string") {
+        try {
+          parsedMediaTypes = JSON.parse(mediaTypes);
+        } catch {
+          parsedMediaTypes = mediaTypes.split(",");
+        }
+      }
+      mediaFiles = mediaArr.map((file, index) => {
         const relativePath = `/images/posts/${path.basename(file.path)}`;
-        return relativePath;
+        let fileType =
+          parsedMediaTypes && Array.isArray(parsedMediaTypes)
+            ? parsedMediaTypes[index]
+            : file.mimetype.startsWith("image/")
+            ? "image"
+            : "video";
+        const mediaObject = {
+          url: relativePath,
+          type: fileType,
+        };
+        // If it's a video and a thumbnail was uploaded, associate it
+        if (fileType === "video" && thumbArr[index]) {
+          mediaObject.thumbnail = `/images/posts/${path.basename(
+            thumbArr[index].path
+          )}`;
+        }
+        return mediaObject;
       });
     }
 
@@ -96,73 +185,8 @@ exports.getAllPosts = async (req, res, next) => {
         totalPosts,
         totalPages: Math.ceil(totalPosts / limit),
         currentPage: page,
-        postsPerPage: limit,
+        limit,
       },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get user's own posts
- * @route GET /api/posts/me
- */
-exports.getMyPosts = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
-    // Get total count for pagination info
-    const totalPosts = await Post.countDocuments({ userId });
-
-    // Get user's posts
-    const posts = await Post.find({ userId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate({
-        path: "userId",
-        select: "fullName profileImage",
-      });
-
-    res.status(200).json({
-      message: "Posts fetched successfully",
-      posts,
-      pagination: {
-        totalPosts,
-        totalPages: Math.ceil(totalPosts / limit),
-        currentPage: page,
-        postsPerPage: limit,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get a single post by ID
- * @route GET /api/posts/:id
- */
-exports.getPostById = async (req, res, next) => {
-  try {
-    const postId = req.params.id;
-
-    const post = await Post.findById(postId).populate({
-      path: "userId",
-      select: "fullName profileImage",
-    });
-
-    if (!post) {
-      return next(new AppError("Post not found", 404));
-    }
-
-    res.status(200).json({
-      message: "Post fetched successfully",
-      post,
     });
   } catch (error) {
     next(error);

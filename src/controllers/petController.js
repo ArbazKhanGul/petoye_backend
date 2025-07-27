@@ -18,16 +18,47 @@ exports.createPetListing = async (req, res, next) => {
       isVaccinated,
       personalityTraits,
       favoriteActivities,
-      mediaFiles,
+      location,
+      mediaTypes,
     } = req.body;
 
     // Get user ID from auth middleware
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    // Verify user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return next(new AppError("User not found", 404));
+    // Process uploaded files
+    let mediaFiles = [];
+    if (req.files && (req.files["mediaFiles"] || req.files["thumbnails"])) {
+      const mediaArr = req.files["mediaFiles"] || [];
+      const thumbArr = req.files["thumbnails"] || [];
+      // Parse mediaTypes if sent as JSON string
+      let parsedMediaTypes = mediaTypes;
+      if (typeof mediaTypes === "string") {
+        try {
+          parsedMediaTypes = JSON.parse(mediaTypes);
+        } catch {
+          parsedMediaTypes = mediaTypes.split(",");
+        }
+      }
+      mediaFiles = mediaArr.map((file, index) => {
+        const relativePath = `/images/petlisting/${file.filename}`;
+        let fileType =
+          parsedMediaTypes && Array.isArray(parsedMediaTypes)
+            ? parsedMediaTypes[index]
+            : file.mimetype.startsWith("image/")
+            ? "image"
+            : "video";
+        const mediaObject = {
+          url: relativePath,
+          type: fileType,
+          name: file.originalname,
+          size: file.size,
+        };
+        // If it's a video and a thumbnail was uploaded, associate it
+        if (fileType === "video" && thumbArr[index]) {
+          mediaObject.thumbnail = `/images/petlisting/${thumbArr[index].filename}`;
+        }
+        return mediaObject;
+      });
     }
 
     // Create new pet listing
@@ -43,9 +74,9 @@ exports.createPetListing = async (req, res, next) => {
       isVaccinated,
       personalityTraits,
       favoriteActivities,
+      location,
       mediaFiles,
       owner: userId,
-      location: user.country, // Default to user's country
     });
 
     // Return success response
@@ -211,7 +242,7 @@ exports.deletePetListing = async (req, res, next) => {
  */
 exports.getMyPetListings = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     // Pagination
     const page = parseInt(req.query.page) || 1;

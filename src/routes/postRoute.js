@@ -49,7 +49,10 @@ router
   .route("/")
   // Create a post with optional media files (up to 3)
   .post(
-    upload.array("mediaFiles", 3),
+    upload.fields([
+      { name: "mediaFiles", maxCount: 3 },
+      { name: "thumbnails", maxCount: 3 },
+    ]),
     validate(createPostSchema),
     postController.createPost
   )
