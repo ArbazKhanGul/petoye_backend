@@ -8,6 +8,12 @@ const petListingSchema = new Schema(
       required: true,
       trim: true,
     },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      required: true,
+      trim: true,
+    },
     price: {
       type: Number,
       required: true,

@@ -8,6 +8,7 @@ exports.createPetListing = async (req, res, next) => {
   try {
     const {
       name,
+      gender,
       price,
       currencyCode,
       currencySymbol,
@@ -64,6 +65,7 @@ exports.createPetListing = async (req, res, next) => {
     // Create new pet listing
     const petListing = await PetListing.create({
       name,
+      gender,
       price,
       currencyCode,
       currencySymbol,
@@ -156,6 +158,7 @@ exports.getPetListing = async (req, res, next) => {
       "owner",
       "fullName profileImage country email phoneNumber"
     );
+    console.log("🚀 ~ petListing:", petListing);
 
     if (!petListing) {
       return next(new AppError("Pet listing not found", 404));

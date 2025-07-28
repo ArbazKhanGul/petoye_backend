@@ -8,6 +8,11 @@ const petListingSchema = z.object({
     })
     .min(1, "Pet name cannot be empty"),
 
+  gender: z.enum(["male", "female", "other"], {
+    required_error: "Gender is required",
+    invalid_type_error: "Gender must be one of: male, female, other",
+  }),
+
   price: z.union([
     z.number(),
     z.string().transform((val) => {
