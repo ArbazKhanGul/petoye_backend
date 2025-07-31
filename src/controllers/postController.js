@@ -20,13 +20,15 @@ exports.getMyPosts = async (req, res, next) => {
       });
 
     res.status(200).json({
-      message: "User's posts fetched successfully",
-      posts,
-      pagination: {
-        totalPosts,
-        totalPages: Math.ceil(totalPosts / limit),
-        currentPage: page,
-        limit,
+      success: true,
+      data: {
+        posts,
+        pagination: {
+          page,
+          limit,
+          totalPages: Math.ceil(totalPosts / limit),
+          totalResults: totalPosts,
+        },
       },
     });
   } catch (error) {
@@ -179,13 +181,15 @@ exports.getAllPosts = async (req, res, next) => {
       });
 
     res.status(200).json({
-      message: "Posts fetched successfully",
-      posts,
-      pagination: {
-        totalPosts,
-        totalPages: Math.ceil(totalPosts / limit),
-        currentPage: page,
-        limit,
+      success: true,
+      data: {
+        posts,
+        pagination: {
+          page,
+          limit,
+          totalPages: Math.ceil(totalPosts / limit),
+          totalResults: totalPosts,
+        },
       },
     });
   } catch (error) {

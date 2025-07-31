@@ -100,8 +100,6 @@ exports.getAllPetListings = async (req, res, next) => {
   try {
     // Default to active listings only
     const status = req.query.status || "active";
-
-    // Basic filtering
     const filter = { status };
 
     // Optional type filter
@@ -109,11 +107,67 @@ exports.getAllPetListings = async (req, res, next) => {
       filter.type = req.query.type;
     }
 
+    // Optional gender filter
+    if (req.query.gender) {
+      filter.gender = req.query.gender;
+    }
+
     // Optional price range filter
     if (req.query.minPrice || req.query.maxPrice) {
       filter.price = {};
-      if (req.query.minPrice) filter.price.$gte = req.query.minPrice;
-      if (req.query.maxPrice) filter.price.$lte = req.query.maxPrice;
+      if (req.query.minPrice) filter.price.$gte = Number(req.query.minPrice);
+      if (req.query.maxPrice) filter.price.$lte = Number(req.query.maxPrice);
+    }
+
+    // Optional location filter
+    if (req.query.location) {
+      filter.location = { $regex: req.query.location, $options: "i" };
+    }
+
+    // Optional age filter (exact or range)
+    if (req.query.age) {
+      filter.age = Number(req.query.age);
+    } else {
+      if (req.query.minAge || req.query.maxAge) {
+        filter.age = {};
+        if (req.query.minAge) filter.age.$gte = Number(req.query.minAge);
+        if (req.query.maxAge) filter.age.$lte = Number(req.query.maxAge);
+      }
+    }
+
+    // Optional weight filter
+    if (req.query.weight) {
+      filter.weight = req.query.weight;
+    }
+
+    // Optional isVaccinated filter
+    if (req.query.isVaccinated !== undefined) {
+      filter.isVaccinated = req.query.isVaccinated === "true";
+    }
+
+    // Optional personalityTraits filter (array, match any)
+    if (req.query.personalityTraits) {
+      const traits = Array.isArray(req.query.personalityTraits)
+        ? req.query.personalityTraits
+        : req.query.personalityTraits.split(",");
+      filter.personalityTraits = { $in: traits };
+    }
+
+    // Optional favoriteActivities filter (array, match any)
+    if (req.query.favoriteActivities) {
+      const favs = Array.isArray(req.query.favoriteActivities)
+        ? req.query.favoriteActivities
+        : req.query.favoriteActivities.split(",");
+      filter.favoriteActivities = { $in: favs };
+    }
+
+    // Optional createdAt filter (date range)
+    if (req.query.createdAfter || req.query.createdBefore) {
+      filter.createdAt = {};
+      if (req.query.createdAfter)
+        filter.createdAt.$gte = new Date(req.query.createdAfter);
+      if (req.query.createdBefore)
+        filter.createdAt.$lte = new Date(req.query.createdBefore);
     }
 
     // Pagination
@@ -130,16 +184,17 @@ exports.getAllPetListings = async (req, res, next) => {
 
     // Count total
     const total = await PetListing.countDocuments(filter);
+    const totalPages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
       data: {
         petListings,
         pagination: {
-          total,
           page,
-          pages: Math.ceil(total / limit),
           limit,
+          totalPages,
+          totalResults: total,
         },
       },
     });
@@ -186,16 +241,57 @@ exports.updatePetListing = async (req, res, next) => {
     }
 
     // Verify ownership
-    if (petListing.owner.toString() !== req.user.id) {
+    if (petListing.owner.toString() !== req.user._id) {
       return next(
         new AppError("You are not authorized to update this listing", 403)
       );
     }
 
-    // Update listing
+    // --- Handle media file uploads (if any) ---
+    let mediaFiles = petListing.mediaFiles; // default: keep old
+    if (req.files && (req.files["mediaFiles"] || req.files["thumbnails"])) {
+      const mediaArr = req.files["mediaFiles"] || [];
+      const thumbArr = req.files["thumbnails"] || [];
+      // Parse mediaTypes if sent as JSON string
+      let parsedMediaTypes = req.body.mediaTypes;
+      if (typeof parsedMediaTypes === "string") {
+        try {
+          parsedMediaTypes = JSON.parse(parsedMediaTypes);
+        } catch {
+          parsedMediaTypes = parsedMediaTypes.split(",");
+        }
+      }
+      mediaFiles = mediaArr.map((file, index) => {
+        const relativePath = `/images/petlisting/${file.filename}`;
+        let fileType =
+          parsedMediaTypes && Array.isArray(parsedMediaTypes)
+            ? parsedMediaTypes[index]
+            : file.mimetype.startsWith("image/")
+            ? "image"
+            : "video";
+        const mediaObject = {
+          url: relativePath,
+          type: fileType,
+          name: file.originalname,
+          size: file.size,
+        };
+        if (fileType === "video" && thumbArr[index]) {
+          mediaObject.thumbnail = `/images/petlisting/${thumbArr[index].filename}`;
+        }
+        return mediaObject;
+      });
+    }
+
+    // Build update object
+    const updateFields = {
+      ...req.body,
+      mediaFiles,
+    };
+
+    // Actually update
     const updatedListing = await PetListing.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateFields,
       { new: true, runValidators: true }
     );
 
@@ -222,7 +318,7 @@ exports.deletePetListing = async (req, res, next) => {
     }
 
     // Verify ownership
-    if (petListing.owner.toString() !== req.user.id) {
+    if (petListing.owner.toString() !== req.user._id) {
       return next(
         new AppError("You are not authorized to delete this listing", 403)
       );

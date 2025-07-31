@@ -3,8 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const errorMiddleware = require("./middleware/errorMiddleware");
-const auth = require("../src/routes/authRoute");
-const posts = require("../src/routes/postRoute");
+const auth = require("./routes/authRoute");
+const posts = require("./routes/postRoute");
 const setupSwagger = require("../swagger");
 require("./config/db");
 
@@ -36,6 +36,7 @@ app.use("/api/images", express.static(path.join(__dirname, "../images")));
 app.use("/api/auth", auth);
 app.use("/api/posts", posts);
 app.use("/api/pets", require("./routes/petRoute"));
+
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
 });

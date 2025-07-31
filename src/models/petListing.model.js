@@ -97,10 +97,6 @@ const petListingSchema = new Schema(
       ref: "User",
       required: true,
     },
-    location: {
-      type: String,
-      trim: true,
-    },
     createdAt: {
       type: Date,
       default: Date.now,

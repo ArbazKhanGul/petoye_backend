@@ -132,7 +132,15 @@ router.route("/me").get(authMiddleware, petController.getMyPetListings);
 router
   .route("/:id")
   .get(petController.getPetListing)
-  .put(authMiddleware, petController.updatePetListing)
+  .put(
+    authMiddleware,
+    upload.fields([
+      { name: "mediaFiles", maxCount: 3 },
+      { name: "thumbnails", maxCount: 3 },
+    ]),
+    validate(petListingSchema),
+    petController.updatePetListing
+  )
   .delete(authMiddleware, petController.deletePetListing);
 
 /**
