@@ -5,7 +5,7 @@ const rewardConfigSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ["referral", "like", "comment"],
+      enum: ["referral", "like"],
       required: true,
       unique: true,
     },

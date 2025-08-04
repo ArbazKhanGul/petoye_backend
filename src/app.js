@@ -5,6 +5,8 @@ const path = require("path");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const auth = require("./routes/authRoute");
 const posts = require("./routes/postRoute");
+const postInteractions = require("./routes/postInteractionRoutes");
+const comments = require("./routes/commentRoutes");
 const setupSwagger = require("../swagger");
 require("./config/db");
 
@@ -35,6 +37,8 @@ app.use("/api/images", express.static(path.join(__dirname, "../images")));
 // Routes
 app.use("/api/auth", auth);
 app.use("/api/posts", posts);
+app.use("/api/posts", postInteractions);
+app.use("/api/comments", comments);
 app.use("/api/pets", require("./routes/petRoute"));
 
 app.get("/", (req, res) => {

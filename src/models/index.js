@@ -5,6 +5,9 @@ const Referral = require("./referral.model");
 const TokenTransaction = require("./tokenTransaction.model");
 const PetListing = require("./petListing.model");
 const Post = require("./post.model");
+const Like = require("./like.model");
+const Comment = require("./comment.model");
+const RewardConfig = require("./rewardConfig.model");
 
 module.exports = {
   User,
@@ -14,4 +17,7 @@ module.exports = {
   TokenTransaction,
   PetListing,
   Post,
+  Like,
+  Comment,
+  RewardConfig,
 };

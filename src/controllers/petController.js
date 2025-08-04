@@ -31,6 +31,47 @@ exports.createPetListing = async (req, res, next) => {
     if (req.files && (req.files["mediaFiles"] || req.files["thumbnails"])) {
       const mediaArr = req.files["mediaFiles"] || [];
       const thumbArr = req.files["thumbnails"] || [];
+
+      // Check for thumbnail mapping information
+      const thumbnailMapping = {};
+
+      // Debug log all request body fields and thumbnails
+      console.log("Pet listing - Request body fields:", Object.keys(req.body));
+      console.log(`Pet listing - Received ${thumbArr.length} thumbnail files`);
+
+      // Process thumbnail mappings
+      Object.keys(req.body).forEach((key) => {
+        if (key.startsWith("thumbnail_for_video_")) {
+          try {
+            const videoIndex = parseInt(
+              key.replace("thumbnail_for_video_", "")
+            );
+            const mapInfo = JSON.parse(req.body[key]);
+            console.log(
+              `Pet listing - Found mapping for video at index ${videoIndex}:`,
+              mapInfo
+            );
+
+            // Store the mapping - index to thumbnail file
+            if (thumbArr.length > 0) {
+              thumbnailMapping[videoIndex] = thumbArr.shift(); // Get the next thumbnail in order
+              console.log(
+                `Pet listing - Associated thumbnail with video ${videoIndex}`
+              );
+            } else {
+              console.warn(
+                `Pet listing - No thumbnail available for video at index ${videoIndex}`
+              );
+            }
+          } catch (err) {
+            console.error(
+              "Pet listing - Error parsing thumbnail mapping:",
+              err
+            );
+          }
+        }
+      });
+
       // Parse mediaTypes if sent as JSON string
       let parsedMediaTypes = mediaTypes;
       if (typeof mediaTypes === "string") {
@@ -40,26 +81,85 @@ exports.createPetListing = async (req, res, next) => {
           parsedMediaTypes = mediaTypes.split(",");
         }
       }
+
+      // Process all media files with their types and thumbnails
       mediaFiles = mediaArr.map((file, index) => {
         const relativePath = `/images/petlisting/${file.filename}`;
-        let fileType =
-          parsedMediaTypes && Array.isArray(parsedMediaTypes)
-            ? parsedMediaTypes[index]
-            : file.mimetype.startsWith("image/")
-            ? "image"
-            : "video";
+
+        // Determine file type with multiple fallbacks
+        let fileType;
+
+        // 1. Use explicitly provided mediaTypes array
+        if (
+          parsedMediaTypes &&
+          Array.isArray(parsedMediaTypes) &&
+          parsedMediaTypes[index]
+        ) {
+          fileType = parsedMediaTypes[index];
+        }
+        // 2. Use mimetype
+        else if (file.mimetype) {
+          fileType = file.mimetype.startsWith("image/") ? "image" : "video";
+        }
+        // 3. Use file extension as last resort
+        else {
+          const filename = file.originalname || file.filename;
+          const isVideo = /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(filename);
+          fileType = isVideo ? "video" : "image";
+        }
+
+        console.log(
+          `Pet listing - File ${index}: Type determined as ${fileType}`
+        );
+
+        // Create media object
         const mediaObject = {
           url: relativePath,
           type: fileType,
           name: file.originalname,
           size: file.size,
         };
-        // If it's a video and a thumbnail was uploaded, associate it
-        if (fileType === "video" && thumbArr[index]) {
-          mediaObject.thumbnail = `/images/petlisting/${thumbArr[index].filename}`;
+
+        // If it's a video, add thumbnail
+        if (fileType === "video" || fileType.startsWith("video/")) {
+          console.log(`Pet listing - Processing video at index ${index}`);
+
+          // Check explicit mapping first (our new method)
+          if (thumbnailMapping[index]) {
+            console.log(
+              `Pet listing - Using explicit thumbnail mapping for video ${index}`
+            );
+            mediaObject.thumbnail = `/images/petlisting/${thumbnailMapping[index].filename}`;
+            console.log(
+              `Pet listing - Thumbnail path set: ${mediaObject.thumbnail}`
+            );
+          }
+          // Fallback to old method
+          else if (thumbArr.length > 0) {
+            console.log(
+              `Pet listing - Using fallback thumbnail for video ${index}`
+            );
+            // Use the next available thumbnail
+            const thumbFile = thumbArr.shift();
+            mediaObject.thumbnail = `/images/petlisting/${thumbFile.filename}`;
+            console.log(
+              `Pet listing - Fallback thumbnail path set: ${mediaObject.thumbnail}`
+            );
+          } else {
+            console.log(
+              `Pet listing - No thumbnail available for video ${index}`
+            );
+          }
         }
+
         return mediaObject;
       });
+
+      // Log the final media files array for debugging
+      console.log(
+        "Pet listing - Final mediaFiles array:",
+        JSON.stringify(mediaFiles, null, 2)
+      );
     }
 
     // Create new pet listing
@@ -252,32 +352,117 @@ exports.updatePetListing = async (req, res, next) => {
     if (req.files && (req.files["mediaFiles"] || req.files["thumbnails"])) {
       const mediaArr = req.files["mediaFiles"] || [];
       const thumbArr = req.files["thumbnails"] || [];
+
+      console.log("Pet Update - Received files:", {
+        mediaCount: mediaArr.length,
+        thumbnailCount: thumbArr.length,
+      });
+
+      // Check for thumbnail mapping information
+      const thumbnailMapping = {};
+
+      // Process thumbnail mappings from form data
+      Object.keys(req.body).forEach((key) => {
+        if (key.startsWith("thumbnail_for_video_")) {
+          try {
+            const videoIndex = parseInt(
+              key.replace("thumbnail_for_video_", "")
+            );
+            const mapInfo = JSON.parse(req.body[key]);
+            console.log(
+              `Pet Update - Found mapping for video at index ${videoIndex}:`,
+              mapInfo
+            );
+
+            // Store the mapping - index to thumbnail file
+            if (thumbArr.length > 0) {
+              thumbnailMapping[videoIndex] = thumbArr.shift(); // Get the next thumbnail in order
+              console.log(
+                `Pet Update - Associated thumbnail with video ${videoIndex}`
+              );
+            }
+          } catch (err) {
+            console.error("Pet Update - Error parsing thumbnail mapping:", err);
+          }
+        }
+      });
+
       // Parse mediaTypes if sent as JSON string
       let parsedMediaTypes = req.body.mediaTypes;
       if (typeof parsedMediaTypes === "string") {
         try {
           parsedMediaTypes = JSON.parse(parsedMediaTypes);
-        } catch {
+          console.log("Pet Update - Parsed media types:", parsedMediaTypes);
+        } catch (err) {
+          console.error("Pet Update - Error parsing mediaTypes:", err);
           parsedMediaTypes = parsedMediaTypes.split(",");
         }
       }
+
+      // Process all media files with their types and thumbnails
       mediaFiles = mediaArr.map((file, index) => {
         const relativePath = `/images/petlisting/${file.filename}`;
-        let fileType =
-          parsedMediaTypes && Array.isArray(parsedMediaTypes)
-            ? parsedMediaTypes[index]
-            : file.mimetype.startsWith("image/")
-            ? "image"
-            : "video";
+
+        // Determine file type with multiple fallbacks
+        let fileType;
+
+        // 1. Use explicitly provided mediaTypes array
+        if (
+          parsedMediaTypes &&
+          Array.isArray(parsedMediaTypes) &&
+          parsedMediaTypes[index]
+        ) {
+          fileType = parsedMediaTypes[index];
+        }
+        // 2. Use mimetype
+        else if (file.mimetype) {
+          fileType = file.mimetype.startsWith("image/") ? "image" : "video";
+        }
+        // 3. Use file extension as last resort
+        else {
+          const filename = file.originalname || file.filename;
+          const isVideo = /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(filename);
+          fileType = isVideo ? "video" : "image";
+        }
+
+        console.log(
+          `Pet Update - File ${index}: Type determined as ${fileType}`
+        );
+
         const mediaObject = {
           url: relativePath,
           type: fileType,
           name: file.originalname,
           size: file.size,
         };
-        if (fileType === "video" && thumbArr[index]) {
-          mediaObject.thumbnail = `/images/petlisting/${thumbArr[index].filename}`;
+
+        // If it's a video, add thumbnail
+        if (fileType === "video") {
+          // Check explicit mapping first (our new method)
+          if (thumbnailMapping[index]) {
+            console.log(
+              `Pet Update - Using explicit thumbnail mapping for video ${index}`
+            );
+            mediaObject.thumbnail = `/images/petlisting/${thumbnailMapping[index].filename}`;
+            console.log(
+              `Pet Update - Thumbnail path set: ${mediaObject.thumbnail}`
+            );
+          }
+          // Fallback to old method
+          else if (thumbArr.length > 0) {
+            console.log(
+              `Pet Update - Using fallback thumbnail for video ${index}`
+            );
+            // Use the next available thumbnail
+            const thumbFile = thumbArr.shift();
+            mediaObject.thumbnail = `/images/petlisting/${thumbFile.filename}`;
+          } else {
+            console.log(
+              `Pet Update - No thumbnail available for video ${index}`
+            );
+          }
         }
+
         return mediaObject;
       });
     }

@@ -169,4 +169,43 @@ router
    */
   .delete(postController.deletePost);
 
+/**
+ * @swagger
+ * /api/posts/{id}/counts:
+ *   get:
+ *     summary: Get interaction counts for a post
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post counts fetched successfully
+ *       404:
+ *         description: Post not found
+ */
+router.get("/:id/counts", authMiddleware, postController.getPostCounts);
+
+/**
+ * @swagger
+ * /api/posts/update-counts:
+ *   post:
+ *     summary: Update all post counts (admin only)
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All post counts updated successfully
+ *       403:
+ *         description: Not authorized
+ */
+router.post("/update-counts", authMiddleware, postController.updatePostCounts);
+
 module.exports = router;
