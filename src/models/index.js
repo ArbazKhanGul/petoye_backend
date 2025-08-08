@@ -8,6 +8,7 @@ const Post = require("./post.model");
 const Like = require("./like.model");
 const Comment = require("./comment.model");
 const RewardConfig = require("./rewardConfig.model");
+const Follow = require("./follow.model");
 
 module.exports = {
   User,
@@ -20,4 +21,5 @@ module.exports = {
   Like,
   Comment,
   RewardConfig,
+  Follow,
 };

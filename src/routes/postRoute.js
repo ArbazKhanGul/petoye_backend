@@ -88,6 +88,41 @@ router.route("/me").get(postController.getMyPosts);
 
 /**
  * @swagger
+ * /api/posts/user/{id}:
+ *   get:
+ *     summary: Get posts by user ID
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: User's posts fetched successfully
+ *       404:
+ *         description: User not found
+ */
+router.route("/user/:id").get(postController.getUserPosts);
+
+/**
+ * @swagger
  * /api/posts/{id}:
  *   get:
  *     summary: Get post by ID

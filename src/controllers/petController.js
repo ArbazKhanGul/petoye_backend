@@ -592,3 +592,48 @@ exports.markAsSold = async (req, res, next) => {
     return next(new AppError("Failed to update pet status", 500));
   }
 };
+
+/**
+ * Get pet listings by user ID
+ * @route GET /api/pets/user/:id
+ */
+exports.getUserPetListings = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    // Only show active listings for other users
+    const filter = { owner: userId, status: "active" };
+
+    const totalListings = await PetListing.countDocuments(filter);
+    const petListings = await PetListing.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("owner", "fullName profileImage country");
+
+    res.status(200).json({
+      success: true,
+      data: {
+        petListings,
+        pagination: {
+          page,
+          limit,
+          totalPages: Math.ceil(totalListings / limit),
+          totalResults: totalListings,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error getting user pet listings:", error);
+    return next(new AppError("Failed to get user pet listings", 500));
+  }
+};

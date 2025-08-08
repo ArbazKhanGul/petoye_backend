@@ -456,3 +456,47 @@ exports.getPostCounts = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get posts by user ID
+ * @route GET /api/posts/user/:id
+ */
+exports.getUserPosts = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    const totalPosts = await Post.countDocuments({ userId });
+    const posts = await Post.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "userId",
+        select: "fullName profileImage",
+      });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        posts,
+        pagination: {
+          page,
+          limit,
+          totalPages: Math.ceil(totalPosts / limit),
+          totalResults: totalPosts,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

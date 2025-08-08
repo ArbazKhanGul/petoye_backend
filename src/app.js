@@ -40,6 +40,7 @@ app.use("/api/posts", posts);
 app.use("/api/posts", postInteractions);
 app.use("/api/comments", comments);
 app.use("/api/pets", require("./routes/petRoute"));
+app.use("/api/follow", require("./routes/followRoute"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");

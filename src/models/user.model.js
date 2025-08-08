@@ -68,6 +68,17 @@ const userSchema = new Schema(
       type: Number,
       default: 0,
     },
+    // Follow system - using separate Follow collection for scalability
+    followersCount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    followingCount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
   },
   { timestamps: true }
 );

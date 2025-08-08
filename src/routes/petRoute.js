@@ -64,6 +64,41 @@ router.route("/me").get(authMiddleware, petController.getMyPetListings);
 
 /**
  * @swagger
+ * /api/pets/user/{id}:
+ *   get:
+ *     summary: Get pet listings by user ID
+ *     tags: [Pets]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: User's pet listings fetched successfully
+ *       404:
+ *         description: User not found
+ */
+router.route("/user/:id").get(authMiddleware, petController.getUserPetListings);
+
+/**
+ * @swagger
  * /api/pets/{id}:
  *   get:
  *     summary: Get a single pet listing
