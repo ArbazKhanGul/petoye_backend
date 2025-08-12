@@ -13,6 +13,15 @@ const signupSchema = z.object({
     .string({ required_error: "Full name is required" })
     .trim()
     .max(255, { message: "Full name cannot be more than 255 characters" }),
+  username: z
+    .string({ required_error: "Username is required" })
+    .trim()
+    .min(3, { message: "Username must be at least 3 characters" })
+    .max(30, { message: "Username cannot exceed 30 characters" })
+    .regex(/^[a-zA-Z0-9_]+$/, {
+      message: "Username can only contain letters, numbers, and underscores",
+    })
+    .transform((val) => val.toLowerCase()),
   email: z
     .string({ required_error: "Email is required" })
     .trim()
@@ -63,6 +72,22 @@ const updateProfileSchema = z.object({
     .min(3, { message: "Full name must be at least 3 characters" })
     .max(255, { message: "Full name cannot be more than 255 characters" })
     .optional(),
+  username: z
+    .string()
+    .trim()
+    .min(3, { message: "Username must be at least 3 characters" })
+    .max(30, { message: "Username cannot exceed 30 characters" })
+    .regex(/^[a-zA-Z0-9_]+$/, {
+      message: "Username can only contain letters, numbers, and underscores",
+    })
+    .transform((val) => val.toLowerCase())
+    .optional(),
+  bio: z
+    .string()
+    .trim()
+    .max(150, { message: "Bio cannot exceed 150 characters" })
+    .optional()
+    .or(z.literal("")),
   phoneNumber: z
     .string()
     .trim()

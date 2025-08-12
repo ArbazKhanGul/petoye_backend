@@ -7,10 +7,10 @@ const mongoose = require("mongoose");
  */
 exports.followUser = async (req, res, next) => {
   const session = await mongoose.startSession();
-  
+
   try {
     session.startTransaction();
-    
+
     const currentUserId = req.user._id;
     const targetUserId = req.params.userId;
 
@@ -30,7 +30,7 @@ exports.followUser = async (req, res, next) => {
     // Check if already following using the Follow collection
     const existingFollow = await Follow.findOne({
       follower: currentUserId,
-      following: targetUserId
+      following: targetUserId,
     }).session(session);
 
     if (existingFollow) {
@@ -39,20 +39,25 @@ exports.followUser = async (req, res, next) => {
     }
 
     // Create follow relationship
-    await Follow.create([{
-      follower: currentUserId,
-      following: targetUserId
-    }], { session });
+    await Follow.create(
+      [
+        {
+          follower: currentUserId,
+          following: targetUserId,
+        },
+      ],
+      { session }
+    );
 
     // Update follower counts atomically
     await User.findByIdAndUpdate(
-      currentUserId, 
+      currentUserId,
       { $inc: { followingCount: 1 } },
       { session }
     );
 
     await User.findByIdAndUpdate(
-      targetUserId, 
+      targetUserId,
       { $inc: { followersCount: 1 } },
       { session }
     );
@@ -64,8 +69,8 @@ exports.followUser = async (req, res, next) => {
       message: "User followed successfully",
       data: {
         followingId: targetUserId,
-        isFollowing: true
-      }
+        isFollowing: true,
+      },
     });
   } catch (error) {
     await session.abortTransaction();
@@ -81,10 +86,10 @@ exports.followUser = async (req, res, next) => {
  */
 exports.unfollowUser = async (req, res, next) => {
   const session = await mongoose.startSession();
-  
+
   try {
     session.startTransaction();
-    
+
     const currentUserId = req.user._id;
     const targetUserId = req.params.userId;
 
@@ -98,7 +103,7 @@ exports.unfollowUser = async (req, res, next) => {
     // Check if actually following using the Follow collection
     const existingFollow = await Follow.findOne({
       follower: currentUserId,
-      following: targetUserId
+      following: targetUserId,
     }).session(session);
 
     if (!existingFollow) {
@@ -109,18 +114,18 @@ exports.unfollowUser = async (req, res, next) => {
     // Remove follow relationship
     await Follow.deleteOne({
       follower: currentUserId,
-      following: targetUserId
+      following: targetUserId,
     }).session(session);
 
     // Update follower counts atomically
     await User.findByIdAndUpdate(
-      currentUserId, 
+      currentUserId,
       { $inc: { followingCount: -1 } },
       { session }
     );
 
     await User.findByIdAndUpdate(
-      targetUserId, 
+      targetUserId,
       { $inc: { followersCount: -1 } },
       { session }
     );
@@ -132,8 +137,8 @@ exports.unfollowUser = async (req, res, next) => {
       message: "User unfollowed successfully",
       data: {
         followingId: targetUserId,
-        isFollowing: false
-      }
+        isFollowing: false,
+      },
     });
   } catch (error) {
     await session.abortTransaction();
@@ -155,7 +160,7 @@ exports.getFollowStatus = async (req, res, next) => {
     // Check if following using the Follow collection
     const followRelation = await Follow.findOne({
       follower: currentUserId,
-      following: targetUserId
+      following: targetUserId,
     });
 
     const isFollowing = !!followRelation;
@@ -164,8 +169,8 @@ exports.getFollowStatus = async (req, res, next) => {
       success: true,
       data: {
         isFollowing,
-        targetUserId
-      }
+        targetUserId,
+      },
     });
   } catch (error) {
     console.error("Error getting follow status:", error);
@@ -191,7 +196,10 @@ exports.getFollowers = async (req, res, next) => {
 
     // Get followers using the Follow collection with pagination
     const followers = await Follow.find({ following: userId })
-      .populate('follower', 'fullName profileImage email followersCount followingCount')
+      .populate(
+        "follower",
+        "fullName profileImage email followersCount followingCount"
+      )
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -201,7 +209,7 @@ exports.getFollowers = async (req, res, next) => {
     const totalPages = Math.ceil(totalFollowers / limit);
 
     // Extract follower user data
-    const followerUsers = followers.map(follow => follow.follower);
+    const followerUsers = followers.map((follow) => follow.follower);
 
     res.status(200).json({
       success: true,
@@ -213,9 +221,9 @@ exports.getFollowers = async (req, res, next) => {
           totalPages,
           totalItems: totalFollowers,
           hasNextPage: page < totalPages,
-          hasPrevPage: page > 1
-        }
-      }
+          hasPrevPage: page > 1,
+        },
+      },
     });
   } catch (error) {
     console.error("Error getting followers:", error);
@@ -241,7 +249,10 @@ exports.getFollowing = async (req, res, next) => {
 
     // Get following using the Follow collection with pagination
     const following = await Follow.find({ follower: userId })
-      .populate('following', 'fullName profileImage email followersCount followingCount')
+      .populate(
+        "following",
+        "fullName profileImage email followersCount followingCount"
+      )
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -251,7 +262,7 @@ exports.getFollowing = async (req, res, next) => {
     const totalPages = Math.ceil(totalFollowing / limit);
 
     // Extract following user data
-    const followingUsers = following.map(follow => follow.following);
+    const followingUsers = following.map((follow) => follow.following);
 
     res.status(200).json({
       success: true,
@@ -263,9 +274,9 @@ exports.getFollowing = async (req, res, next) => {
           totalPages,
           totalItems: totalFollowing,
           hasNextPage: page < totalPages,
-          hasPrevPage: page > 1
-        }
-      }
+          hasPrevPage: page > 1,
+        },
+      },
     });
   } catch (error) {
     console.error("Error getting following:", error);
@@ -281,8 +292,8 @@ exports.getUserProfile = async (req, res, next) => {
     const userId = req.params.userId;
     const currentUserId = req.user ? req.user._id : null;
 
-    const user = await User.findById(userId).select('-password -refreshTokens');
-    
+    const user = await User.findById(userId).select("-password -refreshTokens");
+
     if (!user) {
       return next(new AppError("User not found", 404));
     }
@@ -292,7 +303,7 @@ exports.getUserProfile = async (req, res, next) => {
     if (currentUserId && currentUserId.toString() !== userId) {
       const followRelation = await Follow.findOne({
         follower: currentUserId,
-        following: userId
+        following: userId,
       });
       isFollowing = !!followRelation;
     }
@@ -309,11 +320,13 @@ exports.getUserProfile = async (req, res, next) => {
           followingCount: user.followingCount,
           country: user.country,
           tokens: user.tokens,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
         },
         isFollowing,
-        isOwnProfile: currentUserId ? currentUserId.toString() === userId : false
-      }
+        isOwnProfile: currentUserId
+          ? currentUserId.toString() === userId
+          : false,
+      },
     });
   } catch (error) {
     console.error("Error getting user profile:", error);

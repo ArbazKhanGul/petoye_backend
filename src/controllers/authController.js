@@ -11,6 +11,7 @@ const {
   RewardConfig,
 } = require("../models");
 const { ms, sendOtpEmail } = require("../helpers");
+const { generateUsername } = require("../helpers/usernameGenerator");
 const GOOGLE_CLIENT_ID_ANDROID = process.env.GOOGLE_CLIENT_ID_ANDROID;
 const GOOGLE_CLIENT_ID_IOS = process.env.GOOGLE_CLIENT_ID_IOS;
 const googleClient = new OAuth2Client();
@@ -19,6 +20,7 @@ exports.register = async (req, res, next) => {
   try {
     const {
       fullName,
+      username,
       email,
       password,
       dateOfBirth,
@@ -39,6 +41,22 @@ exports.register = async (req, res, next) => {
       }
     }
 
+    // Generate or validate username
+    let finalUsername;
+    if (username) {
+      // Check if provided username is already taken
+      const existingUsername = await User.findOne({
+        username: username.toLowerCase(),
+      });
+      if (existingUsername) {
+        return next(new AppError("Username is already taken", 409));
+      }
+      finalUsername = username.toLowerCase();
+    } else {
+      // Generate unique username from email or name
+      finalUsername = await generateUsername(email, fullName);
+    }
+
     // Generate unique referral code (e.g., 8-char alphanumeric)
     let referralCode;
     let codeExists = true;
@@ -47,9 +65,10 @@ exports.register = async (req, res, next) => {
       codeExists = await User.findOne({ referralCode });
     }
 
-    // Create user with referralCode
+    // Create user with referralCode and username
     const user = new User({
       fullName,
+      username: finalUsername,
       email,
       password,
       dateOfBirth,
@@ -485,9 +504,28 @@ exports.googleLogin = async (req, res, next) => {
     }
     let user = await User.findOne({ email: payload.email });
     if (!user) {
+      // Generate unique username from email (part before @)
+      const baseUsername = payload.email.split("@")[0];
+      const uniqueUsername = await generateUsername(
+        payload.email,
+        payload.name || baseUsername
+      );
+
+      // Generate unique referral code
+      let referralCode;
+      let codeExists = true;
+      while (codeExists) {
+        referralCode = Math.random()
+          .toString(36)
+          .substring(2, 10)
+          .toUpperCase();
+        codeExists = await User.findOne({ referralCode });
+      }
+
       // Create user if not exists
       user = new User({
         fullName: payload.name || payload.email.split("@")[0],
+        username: uniqueUsername,
         email: payload.email,
         password: crypto.randomBytes(32).toString("hex"), // random password
         dateOfBirth: new Date("1970-01-01"), // placeholder, can be updated later
@@ -495,6 +533,7 @@ exports.googleLogin = async (req, res, next) => {
         phoneNumber: "", // can be updated later
         emailVerify: true,
         profileImage: payload.picture || undefined,
+        referralCode,
       });
       await user.save();
     } else if (!user.emailVerify) {

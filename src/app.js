@@ -4,6 +4,7 @@ const cors = require("cors");
 const path = require("path");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const auth = require("./routes/authRoute");
+const profile = require("./routes/profileRoute");
 const posts = require("./routes/postRoute");
 const postInteractions = require("./routes/postInteractionRoutes");
 const comments = require("./routes/commentRoutes");
@@ -36,6 +37,7 @@ app.use("/api/images", express.static(path.join(__dirname, "../images")));
 
 // Routes
 app.use("/api/auth", auth);
+app.use("/api/profile", profile);
 app.use("/api/posts", posts);
 app.use("/api/posts", postInteractions);
 app.use("/api/comments", comments);

@@ -10,6 +10,22 @@ const userSchema = new Schema(
       required: true,
       trim: true,
     },
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+      minlength: 3,
+      maxlength: 30,
+      match: /^[a-zA-Z0-9_]+$/,
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: "",
+    },
     email: {
       type: String,
       required: true,
@@ -72,12 +88,12 @@ const userSchema = new Schema(
     followersCount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
     followingCount: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
     },
   },
   { timestamps: true }

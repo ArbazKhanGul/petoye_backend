@@ -7,6 +7,7 @@ This implementation replaces the array-based follow system with a collection-bas
 ## Architecture Changes
 
 ### Before (Array-based - NOT SCALABLE)
+
 ```javascript
 // User Model
 {
@@ -18,6 +19,7 @@ This implementation replaces the array-based follow system with a collection-bas
 ```
 
 ### After (Collection-based - SCALABLE)
+
 ```javascript
 // User Model
 {
@@ -75,21 +77,26 @@ All existing endpoints remain the same:
 ## Migration Guide
 
 ### 1. Run the Migration Script
+
 ```bash
 cd petoye_backend
 node scripts/migrateFollowSystem.js
 ```
 
 ### 2. Create Optimized Indexes
+
 ```bash
 node scripts/createFollowIndexes.js
 ```
 
 ### 3. Verify Migration
+
 The migration script includes verification to ensure data integrity.
 
 ### 4. Clean Up Old Arrays (Optional)
+
 After verifying everything works, you can remove the old arrays:
+
 ```javascript
 // In the migration script
 await cleanupOldArrays();
@@ -98,12 +105,14 @@ await cleanupOldArrays();
 ## Performance Comparison
 
 ### Array-based System (Old)
+
 - **Memory Usage**: O(n) per user document
 - **Query Time**: O(n) for checking follow status
 - **Scalability Limit**: ~16MB per user (thousands of follows)
 - **Write Operations**: Update entire user document
 
 ### Collection-based System (New)
+
 - **Memory Usage**: O(1) per user document
 - **Query Time**: O(log n) with proper indexes
 - **Scalability Limit**: Unlimited (billions of follows)
@@ -123,68 +132,82 @@ With this architecture, you can easily implement:
 ## Example Queries
 
 ### Find Mutual Follows
+
 ```javascript
 const mutualFollows = await Follow.aggregate([
   { $match: { follower: userA._id } },
-  { $lookup: {
-    from: 'follows',
-    let: { followingId: '$following' },
-    pipeline: [
-      { $match: { 
-        $expr: { 
-          $and: [
-            { $eq: ['$follower', userB._id] },
-            { $eq: ['$following', '$$followingId'] }
-          ]
-        }
-      }}
-    ],
-    as: 'mutualFollow'
-  }},
+  {
+    $lookup: {
+      from: "follows",
+      let: { followingId: "$following" },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ["$follower", userB._id] },
+                { $eq: ["$following", "$$followingId"] },
+              ],
+            },
+          },
+        },
+      ],
+      as: "mutualFollow",
+    },
+  },
   { $match: { mutualFollow: { $ne: [] } } },
-  { $lookup: {
-    from: 'users',
-    localField: 'following',
-    foreignField: '_id',
-    as: 'user'
-  }}
+  {
+    $lookup: {
+      from: "users",
+      localField: "following",
+      foreignField: "_id",
+      as: "user",
+    },
+  },
 ]);
 ```
 
 ### Get Follow Suggestions
+
 ```javascript
 const suggestions = await Follow.aggregate([
   // Find users followed by people I follow
   { $match: { follower: { $in: myFollowingIds } } },
-  { $group: { _id: '$following', count: { $sum: 1 } } },
+  { $group: { _id: "$following", count: { $sum: 1 } } },
   { $match: { _id: { $nin: [...myFollowingIds, myUserId] } } },
   { $sort: { count: -1 } },
   { $limit: 10 },
-  { $lookup: {
-    from: 'users',
-    localField: '_id',
-    foreignField: '_id',
-    as: 'user'
-  }}
+  {
+    $lookup: {
+      from: "users",
+      localField: "_id",
+      foreignField: "_id",
+      as: "user",
+    },
+  },
 ]);
 ```
 
 ## Monitoring and Maintenance
 
 ### Check Collection Sizes
+
 ```javascript
-db.follows.stats()
-db.users.stats()
+db.follows.stats();
+db.users.stats();
 ```
 
 ### Monitor Index Usage
+
 ```javascript
-db.follows.getIndexes()
-db.follows.aggregate([{$indexStats: {}}])
+db.follows.getIndexes();
+db.follows.aggregate([{ $indexStats: {} }]);
 ```
 
 ### Performance Monitoring
+
 Set up monitoring for:
+
 - Follow/unfollow operation latency
 - Followers/following list query times
 - Database storage growth
@@ -202,18 +225,23 @@ Set up monitoring for:
 ## Troubleshooting
 
 ### Count Mismatches
+
 Run the verification script:
+
 ```bash
 node scripts/migrateFollowSystem.js verify
 ```
 
 ### Performance Issues
+
 1. Check if indexes are being used: `db.follows.explain()`
 2. Monitor query execution times
 3. Consider adding more specific indexes for your use cases
 
 ### Data Integrity
+
 The system uses MongoDB transactions to ensure data consistency, but you should:
+
 1. Regular backup your database
 2. Monitor for orphaned records
 3. Run periodic data integrity checks
