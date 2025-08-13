@@ -3,6 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const errorMiddleware = require("./middleware/errorMiddleware");
+const http = require("http");
+const { initSocket } = require("./socket/index");
 const auth = require("./routes/authRoute");
 const profile = require("./routes/profileRoute");
 const posts = require("./routes/postRoute");
@@ -41,8 +43,10 @@ app.use("/api/profile", profile);
 app.use("/api/posts", posts);
 app.use("/api/posts", postInteractions);
 app.use("/api/comments", comments);
+app.use("/api/notifications", require("./routes/notificationRoute"));
 app.use("/api/pets", require("./routes/petRoute"));
 app.use("/api/follow", require("./routes/followRoute"));
+app.use("/api/chat", require("./routes/chatRoute"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
@@ -53,6 +57,8 @@ setupSwagger(app);
 //Error Handling
 app.use(errorMiddleware);
 
-app.listen(process.env.PORT, () => {
+const server = http.createServer(app);
+initSocket(server);
+server.listen(process.env.PORT, () => {
   console.log("Listening at port number " + process.env.PORT);
 });

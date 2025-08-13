@@ -1,4 +1,4 @@
-const { Post, Comment } = require("../models");
+const { Post, Comment, Notification } = require("../models");
 const AppError = require("../errors/appError");
 
 /**
@@ -47,6 +47,30 @@ exports.addComment = async (req, res, next) => {
       path: "user",
       select: "fullName profileImage",
     });
+
+    // Create notification for post owner (only if commenter isn't the owner)
+    try {
+      if (post.userId.toString() !== userId.toString()) {
+        const { emitToUser } = require("../socket");
+        const { sendPushToUser } = require("../services/pushService");
+        const created = await Notification.create({
+          user: post.userId,
+          type: "comment",
+          actor: userId,
+          targetId: postId,
+          targetType: "post",
+        });
+        emitToUser(post.userId.toString(), "notification:new", created);
+        sendPushToUser(
+          post.userId,
+          "New comment",
+          "Someone commented on your post",
+          { type: "comment", postId }
+        );
+      }
+    } catch (e) {
+      console.error("Failed to create comment notification", e);
+    }
 
     res.status(201).json({
       success: true,

@@ -4,6 +4,7 @@ const {
   User,
   TokenTransaction,
   RewardConfig,
+  Notification,
 } = require("../models");
 const AppError = require("../errors/appError");
 
@@ -51,12 +52,14 @@ exports.toggleLike = async (req, res, next) => {
       });
 
       // If the post is not the user's own post, process token reward
+      let rewardAmount = 0;
       if (post.userId.toString() !== userId.toString()) {
         // Find reward configuration for likes
         const rewardConfig = await RewardConfig.findOne({ type: "like" });
 
         if (rewardConfig) {
           const tokenAmount = rewardConfig.amount;
+          rewardAmount = tokenAmount;
 
           // Create token transaction record
           await TokenTransaction.create({
@@ -73,6 +76,47 @@ exports.toggleLike = async (req, res, next) => {
             { new: true }
           );
         }
+
+        // Create notifications: like + reward (if any)
+        try {
+          const { emitToUser } = require("../socket");
+          const { sendPushToUser } = require("../services/pushService");
+          const createdLike = await Notification.create({
+            user: post.userId,
+            type: "like",
+            actor: userId,
+            targetId: postId,
+            targetType: "post",
+          });
+          emitToUser(post.userId.toString(), "notification:new", createdLike);
+          sendPushToUser(post.userId, "New like", "Someone liked your post", {
+            type: "like",
+            postId,
+          });
+          if (rewardAmount > 0) {
+            const createdReward = await Notification.create({
+              user: post.userId,
+              type: "reward",
+              actor: userId,
+              targetId: postId,
+              targetType: "post",
+              meta: { tokenAmount: rewardAmount },
+            });
+            emitToUser(
+              post.userId.toString(),
+              "notification:new",
+              createdReward
+            );
+            sendPushToUser(
+              post.userId,
+              "Tokens earned",
+              `+${rewardAmount} tokens`,
+              { type: "reward", postId, amount: rewardAmount }
+            );
+          }
+        } catch (e) {
+          console.error("Failed to create like/reward notification", e);
+        }
       }
 
       // Update post like count
@@ -88,9 +132,7 @@ exports.toggleLike = async (req, res, next) => {
         liked: true,
         likesCount: updatedPost.likesCount,
         tokensEarned:
-          post.userId.toString() !== userId.toString()
-            ? rewardConfig?.amount || 0
-            : 0,
+          post.userId.toString() !== userId.toString() ? rewardAmount : 0,
       });
     }
   } catch (error) {

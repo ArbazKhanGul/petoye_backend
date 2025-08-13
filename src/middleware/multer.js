@@ -6,6 +6,7 @@ const fs = require("fs");
 const profileImageDir = path.join(__dirname, "../../images");
 const postsDir = path.join(__dirname, "../../images/posts");
 const petListingDir = path.join(__dirname, "../../images/petlisting");
+const chatDir = path.join(__dirname, "../../images/chat");
 
 // Create directories if they don't exist
 if (!fs.existsSync(profileImageDir)) {
@@ -17,6 +18,9 @@ if (!fs.existsSync(postsDir)) {
 if (!fs.existsSync(petListingDir)) {
   fs.mkdirSync(petListingDir, { recursive: true });
 }
+if (!fs.existsSync(chatDir)) {
+  fs.mkdirSync(chatDir, { recursive: true });
+}
 
 // Configure storage based on file type
 var storage = multer.diskStorage({
@@ -26,6 +30,8 @@ var storage = multer.diskStorage({
       cb(null, postsDir);
     } else if (req.baseUrl === "/api/pets") {
       cb(null, petListingDir);
+    } else if (req.baseUrl === "/api/chat") {
+      cb(null, chatDir);
     } else {
       cb(null, profileImageDir);
     }
@@ -46,27 +52,43 @@ var storage = multer.diskStorage({
 
 // File filter function
 const fileFilter = (req, file, cb) => {
-  // Accept images and videos
-  if (
-    file.mimetype.startsWith("image/") ||
-    file.mimetype.startsWith("video/")
-  ) {
+  // Accept images, videos, and common documents
+  const isImage = file.mimetype.startsWith("image/");
+  const isVideo = file.mimetype.startsWith("video/");
+  const isDoc =
+    file.mimetype === "application/pdf" ||
+    file.mimetype === "application/msword" ||
+    file.mimetype ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.mimetype === "application/vnd.ms-excel" ||
+    file.mimetype ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    file.mimetype === "text/plain";
+  if (isImage || isVideo || isDoc) {
     cb(null, true);
   } else {
     cb(
-      new Error("Unsupported file type. Only images and videos are allowed."),
+      new Error(
+        "Unsupported file type. Only images, videos, and documents are allowed."
+      ),
       false
     );
   }
 };
 
 // Configure multer
+const maxMb = parseInt(
+  process.env.CHAT_MAX_MEDIA_SIZE_MB ||
+    process.env.MAX_MEDIA_FILE_SIZE_MB ||
+    "5",
+  10
+);
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    // 30 MB in bytes
-    fileSize: 30 * 1024 * 1024,
+    // In bytes; default 5MB
+    fileSize: maxMb * 1024 * 1024,
   },
 });
 

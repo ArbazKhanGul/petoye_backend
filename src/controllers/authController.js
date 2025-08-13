@@ -310,6 +310,55 @@ exports.verifyOtp = async (req, res, next) => {
         type: "referral",
         relatedId: referral._id,
       });
+
+      // Create referral notification for the referrer
+      try {
+        const { Notification } = require("../models");
+        const { emitToUser } = require("../socket");
+        const { sendPushToUser } = require("../services/pushService");
+        const createdReferral = await Notification.create({
+          user: referral.referrer,
+          type: "referral",
+          actor: user._id,
+          targetId: referral._id.toString(),
+          targetType: "referral",
+          meta: { tokenAmount: rewardAmount },
+        });
+        emitToUser(
+          referral.referrer.toString(),
+          "notification:new",
+          createdReferral
+        );
+        sendPushToUser(
+          referral.referrer,
+          "Referral joined",
+          "Your referral just joined!",
+          { type: "referral" }
+        );
+        if (rewardAmount > 0) {
+          const createdReward = await Notification.create({
+            user: referral.referrer,
+            type: "reward",
+            actor: user._id,
+            targetId: referral._id.toString(),
+            targetType: "referral",
+            meta: { tokenAmount: rewardAmount },
+          });
+          emitToUser(
+            referral.referrer.toString(),
+            "notification:new",
+            createdReward
+          );
+          sendPushToUser(
+            referral.referrer,
+            "Tokens earned",
+            `+${rewardAmount} tokens`,
+            { type: "reward", amount: rewardAmount }
+          );
+        }
+      } catch (e) {
+        console.error("Failed to create referral/reward notification", e);
+      }
     }
 
     res.status(200).json({ message: "OTP verified successfully" });

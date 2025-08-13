@@ -1,5 +1,5 @@
 const AppError = require("../errors/appError");
-const { User, Follow } = require("../models");
+const { User, Follow, Notification } = require("../models");
 const mongoose = require("mongoose");
 
 /**
@@ -72,6 +72,28 @@ exports.followUser = async (req, res, next) => {
         isFollowing: true,
       },
     });
+
+    // Create notification for the followed user (fire-and-forget)
+    try {
+      const { emitToUser } = require("../socket");
+      const { sendPushToUser } = require("../services/pushService");
+      const created = await Notification.create({
+        user: targetUserId,
+        type: "follow",
+        actor: currentUserId,
+        targetId: targetUserId,
+        targetType: "user",
+      });
+      emitToUser(targetUserId.toString(), "notification:new", created);
+      sendPushToUser(
+        targetUserId,
+        "New follower",
+        "Someone started following you",
+        { type: "follow" }
+      );
+    } catch (e) {
+      console.error("Failed to create follow notification", e);
+    }
   } catch (error) {
     await session.abortTransaction();
     console.error("Error following user:", error);
