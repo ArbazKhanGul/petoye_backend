@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const SessionToken = require("../models/sessionToken.model");
 
 let ioInstance = null;
+// Track online users with connection counts
+const onlineUsers = new Map(); // userId -> connection count
 
 async function authenticateSocket(socket, next) {
   try {
@@ -46,10 +48,25 @@ function initSocket(server) {
     const userId = socket.user?._id?.toString();
     if (userId) {
       socket.join(`user:${userId}`);
+      const current = onlineUsers.get(userId) || 0;
+      onlineUsers.set(userId, current + 1);
+      // Optional: emit presence change to the user (or their contacts)
+      io.to(`user:${userId}`).emit("presence:update", { userId, online: true });
     }
 
     socket.on("disconnect", () => {
-      // cleanup if needed
+      const uid = socket.user?._id?.toString();
+      if (!uid) return;
+      const current = onlineUsers.get(uid) || 0;
+      if (current <= 1) {
+        onlineUsers.delete(uid);
+        io.to(`user:${uid}`).emit("presence:update", {
+          userId: uid,
+          online: false,
+        });
+      } else {
+        onlineUsers.set(uid, current - 1);
+      }
     });
   });
 
@@ -67,4 +84,8 @@ function emitToUser(userId, event, payload) {
   ioInstance.to(`user:${userId}`).emit(event, payload);
 }
 
-module.exports = { initSocket, getIO, emitToUser };
+function isUserOnline(userId) {
+  return onlineUsers.has(userId.toString());
+}
+
+module.exports = { initSocket, getIO, emitToUser, isUserOnline };

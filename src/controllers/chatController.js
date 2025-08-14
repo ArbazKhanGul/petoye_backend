@@ -15,13 +15,21 @@ exports.listConversations = async (req, res, next) => {
       .lean();
 
     // compute unread for this user
-    const items = convos.map((c) => ({
-      _id: c._id,
-      participants: c.participants,
-      lastMessage: c.lastMessage,
-      unread: Number(c.unreadCounts?.get(userId.toString()) || 0),
-      updatedAt: c.updatedAt,
-    }));
+    const uid = userId.toString();
+    const items = convos.map((c) => {
+      const map = c.unreadCounts || {};
+      // When using .lean(), Mongoose Map becomes a plain object.
+      const unread = Number(
+        typeof map.get === "function" ? map.get(uid) || 0 : map[uid] || 0
+      );
+      return {
+        _id: c._id,
+        participants: c.participants,
+        lastMessage: c.lastMessage,
+        unread,
+        updatedAt: c.updatedAt,
+      };
+    });
 
     res.json({ items });
   } catch (e) {
@@ -142,30 +150,49 @@ exports.sendMessage = async (req, res, next) => {
       at: new Date(),
       sender: userId,
     };
-    // increment unread for recipient
+    // increment unread for recipient (ensure Map semantics)
+    if (!(convo.unreadCounts instanceof Map)) {
+      // convert plain object to Map if needed
+      const m = new Map();
+      if (convo.unreadCounts && typeof convo.unreadCounts === "object") {
+        for (const [k, v] of Object.entries(convo.unreadCounts)) {
+          m.set(k, v);
+        }
+      }
+      convo.unreadCounts = m;
+    }
     const current = Number(convo.unreadCounts.get(other) || 0);
     convo.unreadCounts.set(other, current + 1);
     await convo.save();
 
     res.status(201).json({ message: msg });
 
-    // Realtime emit and push
+    // Realtime emit and push (push only if recipient is offline)
     try {
-      const { emitToUser } = require("../socket");
+      const { emitToUser, isUserOnline } = require("../socket");
       const { sendPushToUser } = require("../services/pushService");
+      // emit to recipient
       emitToUser(other, "chat:new", {
         conversationId: convo._id,
         message: msg,
       });
-      sendPushToUser(
-        other,
-        "New message",
-        payload.type === "text" ? payload.text : "Sent a media",
-        {
-          type: "chat",
-          conversationId: convo._id,
-        }
-      );
+      // emit to sender for delivery confirmation/UI update
+      emitToUser(userId.toString(), "chat:new", {
+        conversationId: convo._id,
+        message: msg,
+      });
+      // Only send push if recipient is offline
+      if (!isUserOnline(other)) {
+        sendPushToUser(
+          other,
+          "New message",
+          payload.type === "text" ? payload.text : "Sent a media",
+          {
+            type: "chat",
+            conversationId: convo._id,
+          }
+        );
+      }
     } catch {}
   } catch (e) {
     next(new AppError("Failed to send message", 500));
@@ -187,7 +214,15 @@ exports.markRead = async (req, res, next) => {
       { conversation: conversationId, recipient: userId, isRead: false },
       { $set: { isRead: true } }
     );
-    convo.unreadCounts.set(userId.toString(), 0);
+    const uid = userId.toString();
+    if (!(convo.unreadCounts instanceof Map)) {
+      const m = new Map();
+      if (convo.unreadCounts && typeof convo.unreadCounts === "object") {
+        for (const [k, v] of Object.entries(convo.unreadCounts)) m.set(k, v);
+      }
+      convo.unreadCounts = m;
+    }
+    convo.unreadCounts.set(uid, 0);
     await convo.save();
     res.json({ ok: true });
   } catch (e) {
