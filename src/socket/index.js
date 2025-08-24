@@ -1,6 +1,9 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const SessionToken = require("../models/sessionToken.model");
+// Chat models & services (lazy loaded portions of chatController logic for socket-based send)
+const { Conversation, Message } = require("../models");
+const { sendPushToUser } = require("../services/pushService");
 
 let ioInstance = null;
 // Track online users with connection counts
@@ -53,6 +56,82 @@ function initSocket(server) {
       // Optional: emit presence change to the user (or their contacts)
       io.to(`user:${userId}`).emit("presence:update", { userId, online: true });
     }
+
+    // Realtime text message sending (socket -> server) without HTTP round trip.
+    // Payload: { conversationId, text }
+    socket.on("chat:send", async (payload, cb) => {
+      try {
+        if (!payload || typeof payload !== "object") {
+          return cb && cb({ ok: false, error: "Invalid payload" });
+        }
+        const { conversationId, text } = payload;
+        if (!conversationId || !text || !text.trim()) {
+          return (
+            cb && cb({ ok: false, error: "conversationId and text required" })
+          );
+        }
+        const conv = await Conversation.findById(conversationId);
+        if (!conv)
+          return cb && cb({ ok: false, error: "Conversation not found" });
+        const uid = socket.user?._id?.toString();
+        if (!uid || !conv.participants.some((p) => p.user.toString() === uid)) {
+          return cb && cb({ ok: false, error: "Not a participant" });
+        }
+        // Identify recipient
+        const recipient = conv.participants
+          .map((p) => p.user.toString())
+          .find((id) => id !== uid);
+        if (!recipient)
+          return cb && cb({ ok: false, error: "Recipient missing" });
+
+        const msgPayload = {
+          conversation: conversationId,
+          sender: uid,
+          recipient,
+          type: "text",
+          text: text.trim(),
+        };
+        const msg = await Message.create(msgPayload);
+
+        // Update conversation lastMessage + unread count for recipient
+        conv.lastMessage = {
+          text: msgPayload.text,
+          type: "text",
+          at: new Date(),
+          sender: uid,
+        };
+        if (!(conv.unreadCounts instanceof Map)) {
+          const m = new Map();
+          if (conv.unreadCounts && typeof conv.unreadCounts === "object") {
+            for (const [k, v] of Object.entries(conv.unreadCounts)) m.set(k, v);
+          }
+          conv.unreadCounts = m;
+        }
+        const currentUnread = Number(conv.unreadCounts.get(recipient) || 0);
+        conv.unreadCounts.set(recipient, currentUnread + 1);
+        await conv.save();
+
+        // Emit to both participants (mirrors HTTP controller behavior)
+        emitToUser(recipient, "chat:new", { conversationId, message: msg });
+        emitToUser(uid, "chat:new", { conversationId, message: msg });
+
+        // Push only if recipient offline
+        if (!isUserOnline(recipient)) {
+          try {
+            sendPushToUser(
+              recipient,
+              "New message",
+              msgPayload.text || "Sent a message",
+              { type: "chat", conversationId }
+            );
+          } catch {}
+        }
+
+        cb && cb({ ok: true, message: msg });
+      } catch (err) {
+        cb && cb({ ok: false, error: "Failed to send" });
+      }
+    });
 
     socket.on("disconnect", () => {
       const uid = socket.user?._id?.toString();
