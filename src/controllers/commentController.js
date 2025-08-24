@@ -220,7 +220,7 @@ exports.deleteComment = async (req, res, next) => {
 
     // Delete comment and all replies
     if (comment.isReply) {
-      // If it's a reply, just delete the single comment
+      // If it's a reply, just delete the single com
       await Comment.findByIdAndDelete(commentId);
     } else {
       // If it's a parent comment, delete it and all its replies
