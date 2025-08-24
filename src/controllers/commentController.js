@@ -60,7 +60,17 @@ exports.addComment = async (req, res, next) => {
           targetId: postId,
           targetType: "post",
         });
-        emitToUser(post.userId.toString(), "notification:new", created);
+
+        // Populate actor before emitting to frontend
+        const populatedNotification = await Notification.findById(created._id)
+          .populate("actor", "_id fullName profileImage username")
+          .lean();
+
+        emitToUser(
+          post.userId.toString(),
+          "notification:new",
+          populatedNotification
+        );
         sendPushToUser(
           post.userId,
           "New comment",

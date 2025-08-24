@@ -88,7 +88,13 @@ exports.toggleLike = async (req, res, next) => {
             targetId: postId,
             targetType: "post",
           });
-          emitToUser(post.userId.toString(), "notification:new", createdLike);
+
+          // Populate actor before emitting to frontend
+          const populatedLike = await Notification.findById(createdLike._id)
+            .populate("actor", "_id fullName profileImage username")
+            .lean();
+
+          emitToUser(post.userId.toString(), "notification:new", populatedLike);
           sendPushToUser(post.userId, "New like", "Someone liked your post", {
             type: "like",
             postId,
@@ -102,10 +108,18 @@ exports.toggleLike = async (req, res, next) => {
               targetType: "post",
               meta: { tokenAmount: rewardAmount },
             });
+
+            // Populate actor for reward notification too
+            const populatedReward = await Notification.findById(
+              createdReward._id
+            )
+              .populate("actor", "_id fullName profileImage username")
+              .lean();
+
             emitToUser(
               post.userId.toString(),
               "notification:new",
-              createdReward
+              populatedReward
             );
             sendPushToUser(
               post.userId,

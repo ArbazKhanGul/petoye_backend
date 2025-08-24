@@ -84,7 +84,17 @@ exports.followUser = async (req, res, next) => {
         targetId: targetUserId,
         targetType: "user",
       });
-      emitToUser(targetUserId.toString(), "notification:new", created);
+
+      // Populate actor before emitting to frontend
+      const populatedNotification = await Notification.findById(created._id)
+        .populate("actor", "_id fullName profileImage username")
+        .lean();
+
+      emitToUser(
+        targetUserId.toString(),
+        "notification:new",
+        populatedNotification
+      );
       sendPushToUser(
         targetUserId,
         "New follower",
