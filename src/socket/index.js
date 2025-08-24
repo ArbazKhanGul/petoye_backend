@@ -60,6 +60,7 @@ function initSocket(server) {
     // Realtime text message sending (socket -> server) without HTTP round trip.
     // Payload: { conversationId, text }
     socket.on("chat:send", async (payload, cb) => {
+      console.log("🚀 ~ initSocket ~ payload:", payload);
       try {
         if (!payload || typeof payload !== "object") {
           return cb && cb({ ok: false, error: "Invalid payload" });
