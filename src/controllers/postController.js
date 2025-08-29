@@ -288,8 +288,16 @@ exports.getAllPosts = async (req, res, next) => {
 exports.updatePost = async (req, res, next) => {
   try {
     const postId = req.params.id;
-    const { content } = req.body;
+    const { content, mediaTypes } = req.body;
     const userId = req.user._id;
+
+    console.log("🚀 ~ Update post request:", {
+      postId,
+      content,
+      mediaTypes,
+      hasFiles: !!req.files,
+      filesCount: req.files ? Object.keys(req.files).length : 0,
+    });
 
     // Find post and check ownership
     const post = await Post.findById(postId);
@@ -305,16 +313,157 @@ exports.updatePost = async (req, res, next) => {
       );
     }
 
-    // Update post content
+    // Clean up old media files if new ones are being uploaded
+    if (req.files && (req.files["mediaFiles"] || req.files["thumbnails"])) {
+      if (post.mediaFiles && post.mediaFiles.length > 0) {
+        post.mediaFiles.forEach((mediaFile) => {
+          let mediaPath;
+          if (typeof mediaFile === "string") {
+            mediaPath = mediaFile;
+          } else if (mediaFile.url) {
+            mediaPath = mediaFile.url;
+          }
+
+          if (mediaPath) {
+            const filePath = path.join(
+              __dirname,
+              "../../",
+              mediaPath.replace(/^\//, "")
+            );
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log("Deleted old media file:", filePath);
+            }
+          }
+
+          // Also clean up thumbnail if it exists
+          if (mediaFile.thumbnail) {
+            const thumbPath = path.join(
+              __dirname,
+              "../../",
+              mediaFile.thumbnail.replace(/^\//, "")
+            );
+            if (fs.existsSync(thumbPath)) {
+              fs.unlinkSync(thumbPath);
+              console.log("Deleted old thumbnail:", thumbPath);
+            }
+          }
+        });
+      }
+
+      // Process new uploaded files (reuse logic from createPost)
+      let mediaFiles = [];
+      let mediaArr = req.files["mediaFiles"] || [];
+      let thumbArr = req.files["thumbnails"] || [];
+
+      if (!Array.isArray(mediaArr)) mediaArr = [mediaArr];
+      if (!Array.isArray(thumbArr)) thumbArr = [thumbArr];
+
+      const thumbnailMapping = {};
+
+      // Process thumbnail mappings
+      Object.keys(req.body).forEach((key) => {
+        if (key.startsWith("thumbnail_for_video_")) {
+          try {
+            const videoIndex = parseInt(
+              key.replace("thumbnail_for_video_", "")
+            );
+            const mapInfo = JSON.parse(req.body[key]);
+            console.log(
+              `Found mapping for video at index ${videoIndex}:`,
+              mapInfo
+            );
+            if (thumbArr.length > 0) {
+              thumbnailMapping[videoIndex] = thumbArr.shift();
+              console.log(`Associated thumbnail with video ${videoIndex}`);
+            }
+          } catch (err) {
+            console.log("Error parsing thumbnail mapping:", err);
+          }
+        }
+      });
+
+      // Parse mediaTypes
+      let parsedMediaTypes = mediaTypes;
+      if (typeof mediaTypes === "string") {
+        try {
+          parsedMediaTypes = JSON.parse(mediaTypes);
+        } catch (err) {
+          parsedMediaTypes = mediaTypes.split(",");
+        }
+      }
+
+      // Process media files
+      mediaFiles = mediaArr.map((file, index) => {
+        const relativePath = `/images/posts/${path.basename(file.path)}`;
+
+        let fileType;
+        if (
+          parsedMediaTypes &&
+          Array.isArray(parsedMediaTypes) &&
+          parsedMediaTypes[index]
+        ) {
+          fileType = parsedMediaTypes[index];
+        } else if (file.mimetype) {
+          fileType = file.mimetype.startsWith("image/") ? "image" : "video";
+        } else {
+          const filename = file.originalname || path.basename(file.path);
+          const isVideo = /\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i.test(filename);
+          fileType = isVideo ? "video" : "image";
+        }
+
+        const mediaObject = {
+          url: relativePath,
+          type: fileType,
+        };
+
+        // Add thumbnail for videos
+        if (fileType === "video" || fileType.startsWith("video/")) {
+          if (thumbnailMapping[index]) {
+            mediaObject.thumbnail = `/images/posts/${path.basename(
+              thumbnailMapping[index].path
+            )}`;
+          } else if (thumbArr.length > 0) {
+            const thumbFile = thumbArr.shift();
+            mediaObject.thumbnail = `/images/posts/${path.basename(
+              thumbFile.path
+            )}`;
+          }
+        }
+
+        return mediaObject;
+      });
+
+      // Update media files
+      post.mediaFiles = mediaFiles;
+    }
+
+    // Update post content and timestamp
     post.content = content;
     post.updatedAt = Date.now();
     await post.save();
 
+    // Populate user details for response
+    const updatedPost = await Post.findById(post._id).populate({
+      path: "userId",
+      select: "fullName profileImage",
+    });
+
     res.status(200).json({
       message: "Post updated successfully",
-      post,
+      post: updatedPost,
     });
   } catch (error) {
+    // Cleanup uploaded files on error
+    if (req.files) {
+      Object.values(req.files)
+        .flat()
+        .forEach((file) => {
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        });
+    }
     next(error);
   }
 };
