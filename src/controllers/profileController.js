@@ -36,8 +36,8 @@ exports.updateProfile = async (req, res, next) => {
     // Fields that can be updated
     const allowedUpdates = [
       "fullName",
-      "username",
       "bio",
+      "gender",
       "dateOfBirth",
       "country",
       "phoneNumber",
@@ -50,18 +50,6 @@ exports.updateProfile = async (req, res, next) => {
         filteredUpdates[key] = updates[key];
       }
     });
-
-    // Check if username is being updated and if it's unique
-    if (filteredUpdates.username) {
-      const existingUser = await User.findOne({
-        username: filteredUpdates.username.toLowerCase(),
-        _id: { $ne: userId },
-      });
-
-      if (existingUser) {
-        return next(new AppError("Username is already taken", 400));
-      }
-    }
 
     // Update user
     const updatedUser = await User.findByIdAndUpdate(userId, filteredUpdates, {

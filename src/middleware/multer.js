@@ -3,9 +3,10 @@ const path = require("path");
 const fs = require("fs");
 
 // Ensure directories exist
-const profileImageDir = path.join(__dirname, "../../images");
+const profileImageDir = path.join(__dirname, "../../images/profile");
 const postsDir = path.join(__dirname, "../../images/posts");
 const petListingDir = path.join(__dirname, "../../images/petlisting");
+const chatDir = path.join(__dirname, "../../images/chat");
 
 // Create directories if they don't exist
 if (!fs.existsSync(profileImageDir)) {
@@ -17,6 +18,9 @@ if (!fs.existsSync(postsDir)) {
 if (!fs.existsSync(petListingDir)) {
   fs.mkdirSync(petListingDir, { recursive: true });
 }
+if (!fs.existsSync(chatDir)) {
+  fs.mkdirSync(chatDir, { recursive: true });
+}
 
 // Configure storage based on file type
 var storage = multer.diskStorage({
@@ -26,8 +30,13 @@ var storage = multer.diskStorage({
       cb(null, postsDir);
     } else if (req.baseUrl === "/api/pets") {
       cb(null, petListingDir);
-    } else {
+    } else if (req.baseUrl === "/api/chat") {
+      cb(null, chatDir);
+    } else if (req.baseUrl === "/api/profile" || req.baseUrl === "/api/auth") {
+      // Profile images go to profile directory
       cb(null, profileImageDir);
+    } else {
+      cb(null, profileImageDir); // Default to profile directory
     }
   },
   filename: function (req, file, cb) {

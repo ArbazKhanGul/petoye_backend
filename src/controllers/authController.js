@@ -102,11 +102,11 @@ exports.register = async (req, res, next) => {
     });
 
     // Send OTP email
-    await sendOtpEmail({
-      to: user.email,
-      otpValue,
-      purpose: "verify your email",
-    });
+    // await sendOtpEmail({
+    //   to: user.email,
+    //   otpValue,
+    //   purpose: "verify your email",
+    // });
 
     // Return user info (omit password)
     const userObj = user.toObject();
@@ -118,6 +118,7 @@ exports.register = async (req, res, next) => {
       user: userObj,
     });
   } catch (err) {
+    console.log("🚀 ~ err:", err);
     if (err.name === "ValidationError") {
       return next(new AppError(err.message, 400));
     }
