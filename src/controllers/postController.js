@@ -19,10 +19,20 @@ exports.getMyPosts = async (req, res, next) => {
         select: "fullName profileImage",
       });
 
+    // Add like status for each post (check if current user liked their own posts)
+    const postIds = posts.map((post) => post._id);
+    const userLikes = await Like.find({ user: userId, post: { $in: postIds } });
+    const likedPostIds = new Set(userLikes.map((like) => like.post.toString()));
+
+    const postsWithLikeStatus = posts.map((post) => ({
+      ...post.toObject(),
+      isLiked: likedPostIds.has(post._id.toString()),
+    }));
+
     res.status(200).json({
       success: true,
       data: {
-        posts,
+        posts: postsWithLikeStatus,
         pagination: {
           page,
           limit,
@@ -43,6 +53,8 @@ exports.getMyPosts = async (req, res, next) => {
 exports.getPostById = async (req, res, next) => {
   try {
     const postId = req.params.id;
+    const userId = req.user?._id; // Get current user ID if authenticated
+
     const post = await Post.findById(postId).populate({
       path: "userId",
       select: "fullName profileImage",
@@ -50,9 +62,23 @@ exports.getPostById = async (req, res, next) => {
     if (!post) {
       return next(new AppError("Post not found", 404));
     }
+
+    // Check if the current user has liked the post
+    let isLiked = false;
+    if (userId) {
+      const userLike = await Like.findOne({ post: postId, user: userId });
+      isLiked = !!userLike;
+    }
+
+    // Add isLiked status to the response
+    const postWithLikeStatus = {
+      ...post.toObject(),
+      isLiked,
+    };
+
     res.status(200).json({
       message: "Post fetched successfully",
-      post,
+      post: postWithLikeStatus,
     });
   } catch (error) {
     next(error);
@@ -250,6 +276,7 @@ exports.getAllPosts = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    const userId = req.user?._id; // Get current user ID if authenticated
 
     // Get total count for pagination info
     const totalPosts = await Post.countDocuments();
@@ -264,10 +291,28 @@ exports.getAllPosts = async (req, res, next) => {
         select: "fullName profileImage",
       });
 
+    // If user is authenticated, check like status for each post
+    let postsWithLikeStatus = posts;
+    if (userId) {
+      const postIds = posts.map((post) => post._id);
+      const userLikes = await Like.find({
+        user: userId,
+        post: { $in: postIds },
+      });
+      const likedPostIds = new Set(
+        userLikes.map((like) => like.post.toString())
+      );
+
+      postsWithLikeStatus = posts.map((post) => ({
+        ...post.toObject(),
+        isLiked: likedPostIds.has(post._id.toString()),
+      }));
+    }
+
     res.status(200).json({
       success: true,
       data: {
-        posts,
+        posts: postsWithLikeStatus,
         pagination: {
           page,
           limit,
@@ -751,6 +796,7 @@ exports.getPostCounts = async (req, res, next) => {
 exports.getUserPosts = async (req, res, next) => {
   try {
     const userId = req.params.id;
+    const currentUserId = req.user?._id; // Current logged-in user
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -771,10 +817,28 @@ exports.getUserPosts = async (req, res, next) => {
         select: "fullName profileImage",
       });
 
+    // Add like status for each post if current user is authenticated
+    let postsWithLikeStatus = posts;
+    if (currentUserId) {
+      const postIds = posts.map((post) => post._id);
+      const userLikes = await Like.find({
+        user: currentUserId,
+        post: { $in: postIds },
+      });
+      const likedPostIds = new Set(
+        userLikes.map((like) => like.post.toString())
+      );
+
+      postsWithLikeStatus = posts.map((post) => ({
+        ...post.toObject(),
+        isLiked: likedPostIds.has(post._id.toString()),
+      }));
+    }
+
     res.status(200).json({
       success: true,
       data: {
-        posts,
+        posts: postsWithLikeStatus,
         pagination: {
           page,
           limit,
