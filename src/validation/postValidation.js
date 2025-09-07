@@ -9,6 +9,8 @@ const createPostSchema = z.object({
 // Schema for post update
 const updatePostSchema = z.object({
   content: z.string().optional(),
+  existingMediaFiles: z.string().optional(), // JSON string of existing media to keep
+  mediaTypes: z.string().optional(), // JSON string of media types
 });
 
 module.exports = {

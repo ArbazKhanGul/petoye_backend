@@ -288,15 +288,38 @@ exports.getAllPosts = async (req, res, next) => {
 exports.updatePost = async (req, res, next) => {
   try {
     const postId = req.params.id;
-    const { content, mediaTypes } = req.body;
+
+    // Debug the full request body structure
+    console.log("🚀 ~ Raw req.body:", req.body);
+    console.log("🚀 ~ req.body keys:", Object.keys(req.body));
+    console.log("🚀 ~ req.files:", req.files);
+    console.log(
+      "🚀 ~ req.files keys:",
+      req.files ? Object.keys(req.files) : "No files"
+    );
+
+    let { content, mediaTypes, existingMediaFiles } = req.body;
+    console.log("🚀 ~ content:", content);
+    console.log("🚀 ~ mediaTypes:", mediaTypes);
+    console.log("🚀 ~ existingMediaFiles:", existingMediaFiles);
     const userId = req.user._id;
+
+    // Handle case where req.body is a string (content-only update)
+    if (typeof req.body === "string") {
+      content = req.body;
+      mediaTypes = undefined;
+      existingMediaFiles = undefined;
+    }
 
     console.log("🚀 ~ Update post request:", {
       postId,
       content,
+      contentType: typeof content,
       mediaTypes,
+      existingMediaFiles,
       hasFiles: !!req.files,
       filesCount: req.files ? Object.keys(req.files).length : 0,
+      bodyType: typeof req.body,
     });
 
     // Find post and check ownership
@@ -313,46 +336,117 @@ exports.updatePost = async (req, res, next) => {
       );
     }
 
-    // Clean up old media files if new ones are being uploaded
-    if (req.files && (req.files["mediaFiles"] || req.files["thumbnails"])) {
-      if (post.mediaFiles && post.mediaFiles.length > 0) {
-        post.mediaFiles.forEach((mediaFile) => {
-          let mediaPath;
-          if (typeof mediaFile === "string") {
-            mediaPath = mediaFile;
-          } else if (mediaFile.url) {
-            mediaPath = mediaFile.url;
-          }
+    // Handle media files update
+    let finalMediaFiles = [];
+    let filesToDelete = [];
 
-          if (mediaPath) {
-            const filePath = path.join(
-              __dirname,
-              "../../",
-              mediaPath.replace(/^\//, "")
-            );
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-              console.log("Deleted old media file:", filePath);
-            }
-          }
+    // Parse existing media files that should be kept
+    let existingToKeep = [];
+    if (existingMediaFiles) {
+      try {
+        existingToKeep = JSON.parse(existingMediaFiles);
+        console.log("🔍 Existing media files to keep:", existingToKeep);
+      } catch (err) {
+        console.log("Error parsing existingMediaFiles:", err);
+      }
+    }
 
-          // Also clean up thumbnail if it exists
-          if (mediaFile.thumbnail) {
-            const thumbPath = path.join(
-              __dirname,
-              "../../",
-              mediaFile.thumbnail.replace(/^\//, "")
-            );
-            if (fs.existsSync(thumbPath)) {
-              fs.unlinkSync(thumbPath);
-              console.log("Deleted old thumbnail:", thumbPath);
-            }
-          }
+    console.log("🔍 Original post media files:", post.mediaFiles);
+
+    // Determine which old files should be deleted
+    if (post.mediaFiles && post.mediaFiles.length > 0) {
+      post.mediaFiles.forEach((mediaFile) => {
+        let mediaPath;
+        if (typeof mediaFile === "string") {
+          mediaPath = mediaFile;
+        } else if (mediaFile.url) {
+          mediaPath = mediaFile.url;
+        }
+
+        console.log("🔍 Checking media file:", { mediaFile, mediaPath });
+
+        // Check if this file should be kept
+        const shouldKeep = existingToKeep.some((existing) => {
+          const match1 = existing.url === mediaPath;
+          const match2 = existing.url === mediaFile.url;
+          console.log("🔍 Comparing:", {
+            existingUrl: existing.url,
+            mediaPath,
+            mediaFileUrl: mediaFile.url,
+            match1,
+            match2,
+          });
+          return match1 || match2;
         });
+
+        console.log("🔍 Should keep file:", shouldKeep);
+
+        if (!shouldKeep && mediaPath) {
+          // Mark for deletion
+          console.log("🔍 Marking for deletion:", mediaPath);
+          filesToDelete.push(mediaFile);
+        } else {
+          console.log("🔍 Keeping file:", mediaPath);
+        }
+      });
+    }
+
+    // Delete files that are no longer needed
+    filesToDelete.forEach((mediaFile) => {
+      let mediaPath;
+      if (typeof mediaFile === "string") {
+        mediaPath = mediaFile;
+      } else if (mediaFile.url) {
+        mediaPath = mediaFile.url;
       }
 
-      // Process new uploaded files (reuse logic from createPost)
-      let mediaFiles = [];
+      if (mediaPath) {
+        const filePath = path.join(
+          __dirname,
+          "../../",
+          mediaPath.replace(/^\//, "")
+        );
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log("Deleted old media file:", filePath);
+        }
+      }
+
+      // Also clean up thumbnail if it exists
+      if (mediaFile.thumbnail) {
+        const thumbPath = path.join(
+          __dirname,
+          "../../",
+          mediaFile.thumbnail.replace(/^\//, "")
+        );
+        if (fs.existsSync(thumbPath)) {
+          fs.unlinkSync(thumbPath);
+          console.log("Deleted old thumbnail:", thumbPath);
+        }
+      }
+    });
+
+    // Add existing files that should be kept - normalize the type field
+    finalMediaFiles = existingToKeep.map((file) => ({
+      ...file,
+      type: file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("video/")
+        ? "video"
+        : file.type, // fallback to original if already normalized
+    }));
+
+    console.log(
+      "🔍 Files to delete:",
+      filesToDelete.map((f) => f.url || f)
+    );
+    console.log(
+      "🔍 Final media files before adding new ones:",
+      finalMediaFiles
+    );
+
+    // Process new uploaded files if any
+    if (req.files && req.files["mediaFiles"]) {
       let mediaArr = req.files["mediaFiles"] || [];
       let thumbArr = req.files["thumbnails"] || [];
 
@@ -393,8 +487,8 @@ exports.updatePost = async (req, res, next) => {
         }
       }
 
-      // Process media files
-      mediaFiles = mediaArr.map((file, index) => {
+      // Process new media files
+      const newMediaFiles = mediaArr.map((file, index) => {
         const relativePath = `/images/posts/${path.basename(file.path)}`;
 
         let fileType;
@@ -434,12 +528,31 @@ exports.updatePost = async (req, res, next) => {
         return mediaObject;
       });
 
-      // Update media files
-      post.mediaFiles = mediaFiles;
+      // Add new media files to the final list
+      finalMediaFiles = [...finalMediaFiles, ...newMediaFiles];
     }
 
+    // Update media files
+    post.mediaFiles = finalMediaFiles;
+
+    console.log("🔍 Final media files set on post:", post.mediaFiles);
+
     // Update post content and timestamp
-    post.content = content;
+    // Ensure content is properly handled
+    if (content !== undefined && content !== null) {
+      post.content = content.toString();
+    }
+
+    // Validate that the post still meets requirements after update
+    if (
+      (!post.content || post.content.trim() === "") &&
+      (!post.mediaFiles || post.mediaFiles.length === 0)
+    ) {
+      return next(
+        new AppError("Post must have either text content or media files", 400)
+      );
+    }
+
     post.updatedAt = Date.now();
     await post.save();
 
@@ -493,14 +606,39 @@ exports.deletePost = async (req, res, next) => {
 
     // Delete media files associated with the post
     if (post.mediaFiles && post.mediaFiles.length > 0) {
-      post.mediaFiles.forEach((mediaPath) => {
-        const filePath = path.join(
-          __dirname,
-          "../../",
-          mediaPath.replace(/^\//, "")
-        );
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
+      post.mediaFiles.forEach((mediaFile) => {
+        let mediaPath;
+        if (typeof mediaFile === "string") {
+          // Legacy string format
+          mediaPath = mediaFile;
+        } else if (mediaFile.url) {
+          // New object format
+          mediaPath = mediaFile.url;
+        }
+
+        if (mediaPath) {
+          const filePath = path.join(
+            __dirname,
+            "../../",
+            mediaPath.replace(/^\//, "")
+          );
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log("Deleted media file:", filePath);
+          }
+
+          // Also delete thumbnail if it exists
+          if (mediaFile.thumbnail) {
+            const thumbPath = path.join(
+              __dirname,
+              "../../",
+              mediaFile.thumbnail.replace(/^\//, "")
+            );
+            if (fs.existsSync(thumbPath)) {
+              fs.unlinkSync(thumbPath);
+              console.log("Deleted thumbnail:", thumbPath);
+            }
+          }
         }
       });
     }
