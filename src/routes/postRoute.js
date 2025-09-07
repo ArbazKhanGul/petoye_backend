@@ -178,7 +178,14 @@ router
    *       404:
    *         description: Post not found
    */
-  .put(validate(updatePostSchema), postController.updatePost)
+  .put(
+    upload.fields([
+      { name: "mediaFiles", maxCount: 3 },
+      { name: "thumbnails", maxCount: 3 },
+    ]),
+    validate(updatePostSchema),
+    postController.updatePost
+  )
   /**
    * @swagger
    * /api/posts/{id}:

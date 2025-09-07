@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 
 // Ensure directories exist
-const profileImageDir = path.join(__dirname, "../../images");
+const profileImageDir = path.join(__dirname, "../../images/profile");
 const postsDir = path.join(__dirname, "../../images/posts");
 const petListingDir = path.join(__dirname, "../../images/petlisting");
 const chatDir = path.join(__dirname, "../../images/chat");
@@ -32,8 +32,11 @@ var storage = multer.diskStorage({
       cb(null, petListingDir);
     } else if (req.baseUrl === "/api/chat") {
       cb(null, chatDir);
-    } else {
+    } else if (req.baseUrl === "/api/profile" || req.baseUrl === "/api/auth") {
+      // Profile images go to profile directory
       cb(null, profileImageDir);
+    } else {
+      cb(null, profileImageDir); // Default to profile directory
     }
   },
   filename: function (req, file, cb) {
