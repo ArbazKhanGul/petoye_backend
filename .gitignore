@@ -12,22 +12,36 @@ admin-panel/build/
 admin-panel/.cache/
 admin-panel/dist/
 
-# Next.js build outputs
+# Next.js build outputs and cache
 admin-panel/**/.next/
 admin-panel/**/out/
 admin-panel/**/build/
 admin-panel/**/.cache/
 
-# Webpack cache
+# Webpack cache and server files
 admin-panel/.cache/webpack/
 admin-panel/**/cache/webpack/
+admin-panel/**/server/
+admin-panel/**/static/
 
-# Package files
+# All pack.gz files
 admin-panel/**/*.pack.gz
 admin-panel/**/*.pack.gz.old
 admin-panel/**/client-devel-*.pack.gz
 admin-panel/**/server-devel-*.pack.gz
 admin-panel/**/index.pack.gz
+
+# Build manifests and references
+admin-panel/**/app-build-manifest.json
+admin-panel/**/build-manifest.json
+admin-panel/**/app-paths-manifest.json
+admin-panel/**/page_client-reference-manifest.js
+admin-panel/**/webpack-runtime.js
+admin-panel/**/webpack.js
+
+# Next.js trace files
+admin-panel/**/trace
+admin-panel/**/.trace
 
 # Environment files
 admin-panel/.env
