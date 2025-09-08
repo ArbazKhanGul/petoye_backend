@@ -9,7 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate:follow": "node scripts/migrateFollowSystem.js",
     "create:indexes": "node scripts/createFollowIndexes.js",
-    "setup:follow": "npm run migrate:follow && npm run create:indexes"
+    "setup:follow": "npm run migrate:follow && npm run create:indexes",
+    "create:admin": "node scripts/createSuperAdmin.js"
   },
   "keywords": [],
   "author": "",

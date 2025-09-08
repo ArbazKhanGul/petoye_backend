@@ -12,6 +12,9 @@ const Follow = require("./follow.model");
 const Notification = require("./notification.model");
 const Conversation = require("./conversation.model");
 const Message = require("./message.model");
+const Admin = require("./admin.model");
+const AdminSession = require("./adminSession.model");
+const AuditLog = require("./auditLog.model");
 
 module.exports = {
   User,
@@ -28,4 +31,7 @@ module.exports = {
   Notification,
   Conversation,
   Message,
+  Admin,
+  AdminSession,
+  AuditLog,
 };

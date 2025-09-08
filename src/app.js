@@ -16,8 +16,12 @@ require("./config/db");
 const app = express();
 app.use(
   cors({
-    origin: ["*", process.env.CLIENT_URL],
+    origin: ["http://localhost:3001", "http://localhost:3000", process.env.CLIENT_URL],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    preflightContinue: false,
+    optionsSuccessStatus: 200
   })
 );
 app.use(express.json());
@@ -47,6 +51,7 @@ app.use("/api/notifications", require("./routes/notificationRoute"));
 app.use("/api/pets", require("./routes/petRoute"));
 app.use("/api/follow", require("./routes/followRoute"));
 app.use("/api/chat", require("./routes/chatRoute"));
+app.use("/api/admin", require("./routes/adminRoute"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
