@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { format, subDays, parseISO } from 'date-fns';
 import DashboardLayout from '../../components/DashboardLayout';
 import StatsCard from '../../components/StatsCard';
-import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DoughnutChart from '../../components/charts/DoughnutChart';
 import AreaChart from '../../components/charts/AreaChart';
@@ -143,80 +142,6 @@ export default function DashboardPage() {
     };
   };
 
-  // Prepare token distribution chart
-  const getTokenDistributionChartData = () => {
-    if (!stats?.tokens?.distribution) return null;
-
-    const sortedData = stats.tokens.distribution.sort((a, b) => {
-      const order = ['0-9', '10-99', '100-499', '500-999', '1000+'];
-      return order.indexOf(a._id) - order.indexOf(b._id);
-    });
-
-    return {
-      labels: sortedData.map(item => `${item._id} tokens`),
-      datasets: [
-        {
-          data: sortedData.map(item => item.count),
-          backgroundColor: getChartColors(sortedData.length),
-          borderColor: getChartColors(sortedData.length).map(color => 
-            color.replace('0.8', '1')
-          ),
-          borderWidth: 2,
-        },
-      ],
-    };
-  };
-
-  // Prepare post engagement chart
-  const getPostEngagementChartData = () => {
-    if (!stats?.posts?.engagement) return null;
-
-    return {
-      labels: stats.posts.engagement.map(item => item._id),
-      datasets: [
-        {
-          label: 'Pet Posts',
-          data: stats.posts.engagement.map(item => item.count),
-          backgroundColor: [
-            'rgba(34, 197, 94, 0.8)',    // Green for high engagement
-            'rgba(245, 158, 11, 0.8)',   // Amber for medium engagement
-            'rgba(239, 68, 68, 0.8)',    // Red for low engagement
-          ],
-          borderColor: [
-            'rgba(34, 197, 94, 1)',
-            'rgba(245, 158, 11, 1)',
-            'rgba(239, 68, 68, 1)',
-          ],
-          borderWidth: 2,
-        },
-      ],
-    };
-  };
-
-  // Prepare activity by hour chart
-  const getActivityByHourChartData = () => {
-    if (!stats?.activity?.byHour) return null;
-
-    const hourData = Array.from({ length: 24 }, (_, hour) => {
-      const data = stats.activity.byHour.find(item => item._id === hour);
-      return data ? data.count : 0;
-    });
-
-    return {
-      labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
-      datasets: [
-        {
-          label: 'Active Pet Lovers',
-          data: hourData,
-          backgroundColor: 'rgba(251, 146, 60, 0.8)',
-          borderColor: 'rgba(251, 146, 60, 1)',
-          borderWidth: 3,
-          tension: 0.4,
-        },
-      ],
-    };
-  };
-
   if (loading) {
     return (
       <DashboardLayout>
@@ -252,29 +177,36 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6 bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen">
-        <div className="flex justify-between items-center">
+      <div className="p-6 space-y-8 bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen">
+        {/* Streamlined Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
           <div>
             <h1 className="text-4xl font-bold text-gray-800 mb-2">🐾 Pet Analytics Dashboard</h1>
             <p className="text-gray-600">Monitor your pet community's growth and engagement</p>
           </div>
-          <button
-            onClick={fetchDashboardStats}
-            className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-6 py-3 rounded-xl hover:from-orange-600 hover:to-amber-600 transition-all duration-300 shadow-lg hover:shadow-xl font-medium"
-          >
-            🔄 Refresh Data
-          </button>
+          <div className="flex items-center space-x-3">
+            <div className="bg-white px-4 py-2 rounded-xl border border-orange-200 shadow-sm">
+              <span className="text-sm text-gray-500">Last Updated:</span>
+              <span className="text-sm font-bold text-orange-600 ml-2">{new Date().toLocaleTimeString()}</span>
+            </div>
+            <button
+              onClick={fetchDashboardStats}
+              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-6 py-3 rounded-xl hover:from-orange-600 hover:to-amber-600 transition-all duration-300 shadow-lg hover:shadow-xl font-medium flex items-center"
+            >
+              🔄 <span className="ml-1">Refresh</span>
+            </button>
+          </div>
         </div>
 
-        {/* Overview Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {/* Key Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
           <StatsCard
             title="Total Users"
             value={stats.overview?.totalUsers || 0}
             icon="👥"
             trend={+12}
             color="orange"
-            subtitle="All registered pet lovers"
+            subtitle="Pet lovers"
           />
           <StatsCard
             title="Active Users"
@@ -282,7 +214,7 @@ export default function DashboardPage() {
             icon="🟢"
             trend={+8}
             color="green"
-            subtitle="Last 30 days"
+            subtitle="This month"
           />
           <StatsCard
             title="Total Posts"
@@ -290,7 +222,7 @@ export default function DashboardPage() {
             icon="📝"
             trend={+15}
             color="purple"
-            subtitle="Pet moments shared"
+            subtitle="Pet moments"
           />
           <StatsCard
             title="PetTokens"
@@ -298,7 +230,7 @@ export default function DashboardPage() {
             icon="🪙"
             trend={+5}
             color="yellow"
-            subtitle="Total transactions"
+            subtitle="Transactions"
           />
           <StatsCard
             title="Referrals"
@@ -306,11 +238,11 @@ export default function DashboardPage() {
             icon="🔗"
             trend={+20}
             color="red"
-            subtitle="Community growth"
+            subtitle="New members"
           />
         </div>
 
-        {/* Charts Grid */}
+        {/* Essential Charts Grid - Simplified */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* User Growth Chart */}
           <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-shadow">
@@ -338,57 +270,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* User Verification Status */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              ✅ User Verification Status
-            </h3>
-            {getUserVerificationChartData() && (
-              <DoughnutChart
-                data={getUserVerificationChartData()}
-                height={300}
-              />
-            )}
-          </div>
-
-          {/* Token Distribution */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              🪙 PetToken Distribution
-            </h3>
-            {getTokenDistributionChartData() && (
-              <DoughnutChart
-                data={getTokenDistributionChartData()}
-                height={300}
-              />
-            )}
-          </div>
-
-          {/* Post Engagement */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              ❤️ Post Engagement Levels
-            </h3>
-            {getPostEngagementChartData() && (
-              <BarChart
-                data={getPostEngagementChartData()}
-                height={300}
-              />
-            )}
-          </div>
-
-          {/* Activity by Hour */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              ⏰ User Activity by Hour (Last 7 Days)
-            </h3>
-            {getActivityByHourChartData() && (
-              <LineChart
-                data={getActivityByHourChartData()}
-                height={300}
-              />
-            )}
-          </div>
+    
         </div>
 
         {/* Additional Stats */}
