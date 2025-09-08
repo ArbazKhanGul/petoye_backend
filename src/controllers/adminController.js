@@ -3,7 +3,7 @@ const AppError = require("../errors/appError");
 const Admin = require("../models/admin.model");
 const AdminSession = require("../models/adminSession.model");
 const AuditLog = require("../models/auditLog.model");
-const { User, Post, TokenTransaction, Referral, Like, Comment, Follow } = require("../models");
+const { User, Post, TokenTransaction, Referral, Like, Comment, Follow, Otp, SessionToken, UserActivityLog, PetListing, Notification, Message, Conversation } = require("../models");
 
 // Helper function to log admin actions
 const logAdminAction = async (adminId, action, targetType = null, targetId = null, details = {}, req = null, oldData = null, newData = null) => {
@@ -485,29 +485,178 @@ exports.getUserById = async (req, res, next) => {
       return next(new AppError("User not found", 404));
     }
 
-    // Get user's additional data
-    const [posts, followers, following, tokenTransactions, referrals] = await Promise.all([
-      Post.find({ userId }).sort({ createdAt: -1 }).limit(5),
+    // Get comprehensive user data in parallel
+    const [
+      posts,
+      postsCount,
+      followers,
+      following,
+      followersCount,
+      followingCount,
+      tokenTransactions,
+      referrals,
+      likes,
+      comments,
+      petListings,
+      otpHistory,
+      sessionTokens,
+      activityLogs,
+      notifications,
+      sentMessages,
+      receivedMessages,
+      conversations
+    ] = await Promise.all([
+      // Posts
+      Post.find({ userId }).populate('userId', 'fullName username profileImage').sort({ createdAt: -1 }).limit(10),
+      Post.find({ userId }).countDocuments(),
+      
+      // Follow relationships
+      Follow.find({ following: userId }).populate('follower', 'fullName username profileImage').sort({ createdAt: -1 }).limit(10),
+      Follow.find({ follower: userId }).populate('following', 'fullName username profileImage').sort({ createdAt: -1 }).limit(10),
       Follow.find({ following: userId }).countDocuments(),
       Follow.find({ follower: userId }).countDocuments(),
-      TokenTransaction.find({ user: userId }).sort({ createdAt: -1 }).limit(10),
-      Referral.find({ $or: [{ referrer: userId }, { referee: userId }] }),
+      
+      // Token transactions
+      TokenTransaction.find({ user: userId }).sort({ createdAt: -1 }).limit(20),
+      
+      // Referrals
+      Referral.find({ $or: [{ referrer: userId }, { referee: userId }] })
+        .populate('referrer', 'fullName username')
+        .populate('referee', 'fullName username')
+        .sort({ createdAt: -1 }),
+      
+      // Likes and comments
+      Like.find({ user: userId }).populate('post', 'content').sort({ createdAt: -1 }).limit(20),
+      Comment.find({ user: userId }).populate('post', 'content').sort({ createdAt: -1 }).limit(20),
+      
+      // Pet listings
+      PetListing.find({ owner: userId }).sort({ createdAt: -1 }),
+      
+      // OTP history
+      Otp.find({ userId }).sort({ createdAt: -1 }).limit(20),
+      
+      // Session tokens (login history)
+      SessionToken.find({ userId }).sort({ createdAt: -1 }).limit(20),
+      
+      // Activity logs
+      UserActivityLog.find({ userId }).sort({ createdAt: -1 }).limit(50),
+      
+      // Notifications
+      Notification.find({ user: userId }).sort({ createdAt: -1 }).limit(20),
+      
+      // Messages
+      Message.find({ sender: userId }).populate('recipient', 'fullName username').sort({ createdAt: -1 }).limit(20),
+      Message.find({ recipient: userId }).populate('sender', 'fullName username').sort({ createdAt: -1 }).limit(20),
+      
+      // Conversations
+      Conversation.find({ 'participants.user': userId }).populate('participants.user', 'fullName username profileImage').sort({ updatedAt: -1 }).limit(10)
     ]);
+
+    // Calculate additional stats
+    const likesCount = await Like.find({ user: userId }).countDocuments();
+    const commentsCount = await Comment.find({ user: userId }).countDocuments();
+    const petListingsCount = petListings.length;
+    const notificationsCount = await Notification.find({ user: userId }).countDocuments();
+    const unreadNotificationsCount = await Notification.find({ user: userId, isRead: false }).countDocuments();
+
+    // Get recent activity summary
+    const recentActivityCounts = await UserActivityLog.aggregate([
+      { $match: { userId: user._id } },
+      { $group: { _id: '$action', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
+
+    // Device and login analytics
+    const deviceStats = await SessionToken.aggregate([
+      { $match: { userId: user._id } },
+      { $group: { _id: '$deviceType', count: { $sum: 1 } } }
+    ]);
+
+    const loginHistory = sessionTokens.map(session => ({
+      ...session.toObject(),
+      location: session.ipAddress || 'Unknown',
+      loginTime: session.createdAt,
+      isActive: !session.revoked && session.expiresAt > new Date()
+    }));
+
+    // Security info
+    const suspiciousActivity = await UserActivityLog.find({
+      userId,
+      'metadata.success': false
+    }).sort({ createdAt: -1 }).limit(10);
 
     res.status(200).json({
       message: "User details fetched successfully",
       user: {
         ...user.toObject(),
+        
+        // Basic stats
         stats: {
-          postsCount: posts.length,
-          followersCount: followers,
-          followingCount: following,
+          postsCount,
+          followersCount,
+          followingCount,
+          likesCount,
+          commentsCount,
+          petListingsCount,
           tokenTransactionsCount: tokenTransactions.length,
           referralsCount: referrals.length,
+          notificationsCount,
+          unreadNotificationsCount,
+          conversationsCount: conversations.length
         },
+
+        // Content and interactions
         recentPosts: posts,
-        recentTokenTransactions: tokenTransactions,
+        recentLikes: likes,
+        recentComments: comments,
+        followers: followers,
+        following: following,
+        
+        // Financial
+        tokenTransactions,
         referrals,
+        
+        // Pet listings
+        petListings,
+        
+        // Security and authentication
+        otpHistory: otpHistory.map(otp => ({
+          ...otp.toObject(),
+          // Hide actual OTP value for security, show only metadata
+          value: otp.value ? '****' + otp.value.slice(-2) : null,
+          isExpired: otp.expiration < new Date(),
+          isUsed: otp.status
+        })),
+        
+        // Login and device history
+        loginHistory,
+        deviceStats,
+        
+        // Activity tracking
+        activityLogs: activityLogs.map(log => ({
+          ...log.toObject(),
+          timeAgo: Math.floor((new Date() - log.createdAt) / (1000 * 60)) // minutes ago
+        })),
+        recentActivityCounts,
+        
+        // Communication
+        notifications: notifications,
+        conversations: conversations,
+        sentMessages: sentMessages.slice(0, 10),
+        receivedMessages: receivedMessages.slice(0, 10),
+        
+        // Security alerts
+        suspiciousActivity,
+        
+        // Account health
+        accountHealth: {
+          emailVerified: user.emailVerify,
+          profileComplete: !!(user.fullName && user.bio && user.profileImage),
+          hasActiveSession: loginHistory.some(session => session.isActive),
+          lastActive: activityLogs[0]?.createdAt || user.updatedAt,
+          riskLevel: suspiciousActivity.length > 5 ? 'high' : suspiciousActivity.length > 2 ? 'medium' : 'low'
+        }
       },
     });
   } catch (error) {
@@ -855,6 +1004,195 @@ exports.getAuditLogs = async (req, res, next) => {
         total,
         pages: Math.ceil(total / limit),
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// User OTP History
+exports.getUserOtpHistory = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    const otpHistory = await Otp.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip((page - 1) * limit);
+
+    const total = await Otp.countDocuments({ userId });
+
+    // Transform OTP data for admin view
+    const otpData = otpHistory.map(otp => ({
+      ...otp.toObject(),
+      isExpired: otp.expiration < new Date(),
+      isUsed: otp.status,
+      timeAgo: Math.floor((new Date() - otp.createdAt) / (1000 * 60)), // minutes ago
+    }));
+
+    res.status(200).json({
+      message: "User OTP history fetched successfully",
+      otpHistory: otpData,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// User Activity Logs
+exports.getUserActivityLogs = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const action = req.query.action;
+    const dateFrom = req.query.dateFrom;
+    const dateTo = req.query.dateTo;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    // Build filter
+    const filter = { userId };
+    
+    if (action) {
+      filter.action = action;
+    }
+
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) filter.createdAt.$lte = new Date(dateTo);
+    }
+
+    const activityLogs = await UserActivityLog.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip((page - 1) * limit);
+
+    const total = await UserActivityLog.countDocuments(filter);
+
+    // Get activity statistics
+    const activityStats = await UserActivityLog.aggregate([
+      { $match: { userId: user._id } },
+      { $group: { _id: '$action', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    res.status(200).json({
+      message: "User activity logs fetched successfully",
+      activityLogs: activityLogs.map(log => ({
+        ...log.toObject(),
+        timeAgo: Math.floor((new Date() - log.createdAt) / (1000 * 60))
+      })),
+      activityStats,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// User Session History
+exports.getUserSessionHistory = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    const sessions = await SessionToken.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip((page - 1) * limit);
+
+    const total = await SessionToken.countDocuments({ userId });
+
+    // Transform session data
+    const sessionData = sessions.map(session => ({
+      ...session.toObject(),
+      isActive: !session.revoked && session.expiresAt > new Date(),
+      timeAgo: Math.floor((new Date() - session.createdAt) / (1000 * 60)),
+      duration: session.revokedAt ? 
+        Math.floor((session.revokedAt - session.createdAt) / (1000 * 60)) : 
+        Math.floor((new Date() - session.createdAt) / (1000 * 60))
+    }));
+
+    res.status(200).json({
+      message: "User session history fetched successfully",
+      sessions: sessionData,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Revoke User Session
+exports.revokeUserSession = async (req, res, next) => {
+  try {
+    const { userId, sessionId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
+    const session = await SessionToken.findOneAndUpdate(
+      { _id: sessionId, userId },
+      { 
+        revoked: true, 
+        revokedAt: new Date() 
+      },
+      { new: true }
+    );
+
+    if (!session) {
+      return next(new AppError("Session not found", 404));
+    }
+
+    // Log the action
+    await logAdminAction(
+      req.admin._id,
+      "USER_SESSION_REVOKE",
+      "User",
+      userId,
+      { sessionId, reason: req.body.reason || "Admin action" },
+      req
+    );
+
+    res.status(200).json({
+      message: "User session revoked successfully",
+      session,
     });
   } catch (error) {
     next(error);

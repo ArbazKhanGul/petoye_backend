@@ -7,6 +7,7 @@ const {
 const postController = require("../controllers/postController");
 const upload = require("../middleware/multer");
 const authMiddleware = require("../middleware/authMiddleware");
+const { logPostCreate, logPostUpdate, logPostDelete } = require("../middleware/userActivityMiddleware");
 
 const router = express.Router();
 
@@ -54,6 +55,7 @@ router
       { name: "thumbnails", maxCount: 3 },
     ]),
     validate(createPostSchema),
+    logPostCreate,
     postController.createPost
   )
   // Get all posts with pagination

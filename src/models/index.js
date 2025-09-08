@@ -15,6 +15,7 @@ const Message = require("./message.model");
 const Admin = require("./admin.model");
 const AdminSession = require("./adminSession.model");
 const AuditLog = require("./auditLog.model");
+const UserActivityLog = require("./userActivityLog.model");
 
 module.exports = {
   User,
@@ -34,4 +35,5 @@ module.exports = {
   Admin,
   AdminSession,
   AuditLog,
+  UserActivityLog,
 };

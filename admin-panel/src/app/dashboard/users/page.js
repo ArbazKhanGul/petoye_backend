@@ -264,6 +264,12 @@ export default function UsersPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                         <button
+                          onClick={() => window.location.href = `/dashboard/users/${user._id}`}
+                          className="text-green-600 hover:text-green-900"
+                        >
+                          View Details
+                        </button>
+                        <button
                           onClick={() => handleEdit(user)}
                           className="text-blue-600 hover:text-blue-900"
                         >

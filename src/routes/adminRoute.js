@@ -414,4 +414,133 @@ router.get("/export/users", checkRole(["super_admin", "admin"]), adminController
  */
 router.get("/audit-logs", checkRole(["super_admin", "admin"]), adminController.getAuditLogs);
 
+/**
+ * @swagger
+ * /api/admin/users/{id}/otp-history:
+ *   get:
+ *     summary: Get user OTP history
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: User OTP history fetched successfully
+ */
+router.get("/users/:id/otp-history", checkPermission("user_management"), adminController.getUserOtpHistory);
+
+/**
+ * @swagger
+ * /api/admin/users/{id}/activity-logs:
+ *   get:
+ *     summary: Get user activity logs
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: action
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: User activity logs fetched successfully
+ */
+router.get("/users/:id/activity-logs", checkPermission("user_management"), adminController.getUserActivityLogs);
+
+/**
+ * @swagger
+ * /api/admin/users/{id}/session-history:
+ *   get:
+ *     summary: Get user session history
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: User session history fetched successfully
+ */
+router.get("/users/:id/session-history", checkPermission("user_management"), adminController.getUserSessionHistory);
+
+/**
+ * @swagger
+ * /api/admin/users/{userId}/sessions/{sessionId}/revoke:
+ *   post:
+ *     summary: Revoke user session
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User session revoked successfully
+ */
+router.post("/users/:userId/sessions/:sessionId/revoke", checkPermission("user_management"), adminController.revokeUserSession);
+
 module.exports = router;
