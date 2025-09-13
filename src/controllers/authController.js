@@ -102,11 +102,11 @@ exports.register = async (req, res, next) => {
     });
 
     // Send OTP email
-    // await sendOtpEmail({
-    //   to: user.email,
-    //   otpValue,
-    //   purpose: "verify your email",
-    // });
+    await sendOtpEmail({
+      to: user.email,
+      otpValue,
+      purpose: "verify your email",
+    });
 
     // Return user info (omit password)
     const userObj = user.toObject();
@@ -297,7 +297,7 @@ exports.verifyOtp = async (req, res, next) => {
       await referral.save();
       // Fetch referral reward amount from RewardConfig
       let rewardAmount = 0; // fallback default
-      const rewardConfig = await RewardConfig.findOne({ action: "referral" });
+      const rewardConfig = await RewardConfig.findOne({ type: "referral" });
       if (rewardConfig && typeof rewardConfig.amount === "number") {
         rewardAmount = rewardConfig.amount;
       }
@@ -310,6 +310,10 @@ exports.verifyOtp = async (req, res, next) => {
         amount: rewardAmount,
         type: "referral",
         relatedId: referral._id,
+        metadata: {
+          refereeId: user._id, // Track who was referred
+          referralCode: referral.referralCode, // Track the referral code used
+        },
       });
     }
 

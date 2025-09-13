@@ -50,28 +50,47 @@ exports.toggleLike = async (req, res, next) => {
         postOwner: post.userId,
       });
 
+      let tokensEarned = 0;
+
       // If the post is not the user's own post, process token reward
       if (post.userId.toString() !== userId.toString()) {
-        // Find reward configuration for likes
-        const rewardConfig = await RewardConfig.findOne({ type: "like" });
+        // Check if this user has already earned a reward for liking this post
+        const existingReward = await TokenTransaction.findOne({
+          user: post.userId, // Post owner
+          type: "like",
+          relatedId: postId,
+          "metadata.likerId": userId, // Track who gave the like
+        });
 
-        if (rewardConfig) {
-          const tokenAmount = rewardConfig.amount;
+        // Only give reward if no previous reward exists for this user-post combination
+        if (!existingReward) {
+          // Find reward configuration for likes
+          const rewardConfig = await RewardConfig.findOne({ type: "like" });
 
-          // Create token transaction record
-          await TokenTransaction.create({
-            user: post.userId, // Post owner gets the tokens
-            amount: tokenAmount,
-            type: "like",
-            relatedId: postId,
-          });
+          if (rewardConfig) {
+            const tokenAmount = rewardConfig.amount;
 
-          // Update user's token balance
-          await User.findByIdAndUpdate(
-            post.userId,
-            { $inc: { tokens: tokenAmount } },
-            { new: true }
-          );
+            // Create token transaction record with metadata tracking
+            await TokenTransaction.create({
+              user: post.userId, // Post owner gets the tokens
+              amount: tokenAmount,
+              type: "like",
+              relatedId: postId,
+              metadata: {
+                likerId: userId, // Track who gave the like
+                likeId: newLike._id, // Track the specific like
+              },
+            });
+
+            // Update user's token balance
+            await User.findByIdAndUpdate(
+              post.userId,
+              { $inc: { tokens: tokenAmount } },
+              { new: true }
+            );
+
+            tokensEarned = tokenAmount;
+          }
         }
       }
 
@@ -87,10 +106,6 @@ exports.toggleLike = async (req, res, next) => {
         message: "Post liked successfully",
         liked: true,
         likesCount: updatedPost.likesCount,
-        tokensEarned:
-          post.userId.toString() !== userId.toString()
-            ? rewardConfig?.amount || 0
-            : 0,
       });
     }
   } catch (error) {
