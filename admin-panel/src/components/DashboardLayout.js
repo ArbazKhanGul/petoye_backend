@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { COLORS } from '../constants/colors';
 
 export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -67,28 +68,32 @@ export default function DashboardLayout({ children }) {
 
   if (!adminData) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: COLORS.BACKGROUND }}>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: COLORS.PRIMARY }}></div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-orange-50 to-amber-50">
+    <div className="flex h-screen" style={{ backgroundColor: COLORS.BACKGROUND }}>
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-orange-600 to-amber-600 shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+      <div 
+        className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}
+        style={{ backgroundColor: COLORS.SECONDARY_LIGHT }}
+      >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-orange-500">
+          <div className="flex items-center justify-between h-16 px-4" style={{ borderBottom: `1px solid ${COLORS.BORDER_MUTED}` }}>
             <div className="flex items-center">
-              <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center">
-                <span className="text-orange-600 font-bold text-lg">🐾</span>
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: COLORS.PRIMARY }}>
+                <span className="font-bold text-lg" style={{ color: COLORS.SECONDARY }}>🐾</span>
               </div>
-              <span className="ml-2 text-xl font-bold text-white">Petoye Admin</span>
+              <span className="ml-2 text-xl font-bold" style={{ color: COLORS.TEXT }}>Petoye Admin</span>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1 rounded-md text-orange-200 hover:text-white"
+              className="lg:hidden p-1 rounded-md transition-colors"
+              style={{ color: COLORS.TEXT_MUTED }}
             >
               ✕
             </button>
@@ -100,11 +105,23 @@ export default function DashboardLayout({ children }) {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                  item.current
-                    ? 'bg-white text-orange-600 shadow-md'
-                    : 'text-orange-100 hover:bg-orange-500 hover:text-white'
-                }`}
+                className="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200"
+                style={{
+                  backgroundColor: item.current ? COLORS.PRIMARY : 'transparent',
+                  color: item.current ? COLORS.SECONDARY : COLORS.TEXT_MUTED,
+                }}
+                onMouseEnter={(e) => {
+                  if (!item.current) {
+                    e.target.style.backgroundColor = COLORS.NEUTRAL_800;
+                    e.target.style.color = COLORS.TEXT;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!item.current) {
+                    e.target.style.backgroundColor = 'transparent';
+                    e.target.style.color = COLORS.TEXT_MUTED;
+                  }
+                }}
               >
                 <span className="mr-3">{item.icon}</span>
                 {item.name}
@@ -113,19 +130,28 @@ export default function DashboardLayout({ children }) {
           </nav>
 
           {/* Admin Info */}
-          <div className="p-4 border-t border-orange-500">
+          <div className="p-4" style={{ borderTop: `1px solid ${COLORS.BORDER_MUTED}` }}>
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-orange-600 text-sm font-bold">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{ backgroundColor: COLORS.PRIMARY, color: COLORS.SECONDARY }}>
                 {adminData.fullName?.charAt(0)}
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-white">{adminData.fullName}</p>
-                <p className="text-xs text-orange-200">{adminData.role}</p>
+                <p className="text-sm font-medium" style={{ color: COLORS.TEXT }}>{adminData.fullName}</p>
+                <p className="text-xs" style={{ color: COLORS.TEXT_MUTED }}>{adminData.role}</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="mt-3 w-full text-left px-3 py-2 text-sm text-orange-100 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
+              className="mt-3 w-full text-left px-3 py-2 text-sm rounded-lg transition-colors"
+              style={{ color: COLORS.TEXT_MUTED }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = COLORS.ACCENT;
+                e.target.style.color = COLORS.TEXT;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = 'transparent';
+                e.target.style.color = COLORS.TEXT_MUTED;
+              }}
             >
               🚪 Sign out
             </button>
@@ -136,21 +162,22 @@ export default function DashboardLayout({ children }) {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         {/* Top navigation */}
-        <header className="bg-gradient-to-r from-orange-600 to-amber-600 shadow-lg lg:hidden">
+        <header className="shadow-lg lg:hidden" style={{ backgroundColor: COLORS.SECONDARY_LIGHT }}>
           <div className="flex items-center justify-between h-16 px-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1 rounded-md text-orange-100 hover:text-white"
+              className="p-1 rounded-md transition-colors"
+              style={{ color: COLORS.TEXT_MUTED }}
             >
               ☰
             </button>
-            <h1 className="text-lg font-semibold text-white">🐾 Petoye Admin</h1>
+            <h1 className="text-lg font-semibold" style={{ color: COLORS.TEXT }}>🐾 Petoye Admin</h1>
             <div></div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto" style={{ backgroundColor: COLORS.BACKGROUND }}>
           {children}
         </main>
       </div>
@@ -158,7 +185,8 @@ export default function DashboardLayout({ children }) {
       {/* Sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+          className="fixed inset-0 z-40 lg:hidden"
+          style={{ backgroundColor: COLORS.BACKGROUND_MODAL }}
           onClick={() => setSidebarOpen(false)}
         ></div>
       )}

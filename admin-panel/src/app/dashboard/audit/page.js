@@ -88,19 +88,19 @@ export default function AuditPage() {
     <DashboardLayout>
       <div className="p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
-          <p className="text-gray-600">Track all admin actions and system changes</p>
+          <h1 className="text-2xl font-bold text-white">Audit Logs</h1>
+          <p className="text-white opacity-70">Track all admin actions and system changes</p>
         </div>
 
         {/* Filters */}
-        <div className="bg-white p-6 rounded-lg shadow border mb-6">
+        <div className="bg-surface p-6 rounded-lg shadow border border-primary mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-white mb-2">
                 Filter by Action
               </label>
               <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-primary bg-dark text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}
               >
@@ -119,50 +119,50 @@ export default function AuditPage() {
         </div>
 
         {/* Audit Logs Table */}
-        <div className="bg-white rounded-lg shadow border">
+        <div className="bg-surface rounded-lg shadow border border-primary">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-primary">
+              <thead className="bg-dark">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Action
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Admin
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Target
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Details
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Date
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface divide-y divide-primary">
                 {loading ? (
                   <tr>
                     <td colSpan="5" className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       </div>
                     </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan="5" className="px-6 py-12 text-center text-white opacity-70">
                       No audit logs found
                     </td>
                   </tr>
                 ) : (
                   logs.map((log) => (
-                    <tr key={log._id} className="hover:bg-gray-50">
+                    <tr key={log._id} className="hover:bg-dark">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <span className="mr-2">{getActionIcon(log.action)}</span>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getActionColor(log.action)}`}>
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary text-black">
                             {log.action.replace(/_/g, ' ')}
                           </span>
                         </div>

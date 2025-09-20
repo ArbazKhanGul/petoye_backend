@@ -91,20 +91,20 @@ export default function TokensPage() {
     <DashboardLayout>
       <div className="p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Token Management</h1>
-          <p className="text-gray-600">Manage user tokens and transactions</p>
+          <h1 className="text-2xl font-bold text-white">Token Management</h1>
+          <p className="text-white opacity-70">Manage user tokens and transactions</p>
         </div>
 
         {/* Actions and Filters */}
-        <div className="bg-white p-6 rounded-lg shadow border mb-6">
+        <div className="bg-surface p-6 rounded-lg shadow border border-primary mb-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
             <div className="flex items-center space-x-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Transaction Type
                 </label>
                 <select
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-primary bg-dark text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
                 >
@@ -118,7 +118,7 @@ export default function TokensPage() {
             <div>
               <button
                 onClick={() => setShowAdjustModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-primary text-black rounded-lg hover:bg-primary-dark transition-colors duration-200"
               >
                 Adjust User Tokens
               </button>
@@ -127,37 +127,37 @@ export default function TokensPage() {
         </div>
 
         {/* Transactions Table */}
-        <div className="bg-white rounded-lg shadow border">
+        <div className="bg-surface rounded-lg shadow border border-primary">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-primary">
+              <thead className="bg-dark">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                     Date
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface divide-y divide-primary">
                 {loading ? (
                   <tr>
                     <td colSpan="4" className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       </div>
                     </td>
                   </tr>
                 ) : transactions.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan="4" className="px-6 py-12 text-center text-white opacity-70">
                       No transactions found
                     </td>
                   </tr>

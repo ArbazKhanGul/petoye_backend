@@ -7,6 +7,7 @@ import StatsCard from '../../components/StatsCard';
 import BarChart from '../../components/charts/BarChart';
 import DoughnutChart from '../../components/charts/DoughnutChart';
 import AreaChart from '../../components/charts/AreaChart';
+import { COLORS } from '../../constants/colors';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState(null);
@@ -145,10 +146,10 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64 bg-gradient-to-br from-orange-50 to-amber-50">
+        <div className="flex items-center justify-center h-64" style={{ backgroundColor: COLORS.BACKGROUND }}>
           <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-orange-500 mx-auto"></div>
-            <p className="mt-4 text-orange-600 font-medium">Loading pet analytics...</p>
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 mx-auto" style={{ borderColor: COLORS.PRIMARY }}></div>
+            <p className="mt-4 font-medium" style={{ color: COLORS.PRIMARY }}>Loading pet analytics...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -158,12 +159,19 @@ export default function DashboardPage() {
   if (error) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64 bg-gradient-to-br from-orange-50 to-amber-50">
+        <div className="flex items-center justify-center h-64" style={{ backgroundColor: COLORS.BACKGROUND }}>
           <div className="text-center">
-            <div className="text-red-600 text-xl mb-4">⚠️ {error}</div>
+            <div className="text-xl mb-4" style={{ color: COLORS.ACCENT }}>⚠️ {error}</div>
             <button
               onClick={fetchDashboardStats}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-6 py-3 rounded-xl hover:from-orange-600 hover:to-amber-600 font-medium shadow-lg"
+              className="px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-300"
+              style={{ backgroundColor: COLORS.PRIMARY, color: COLORS.SECONDARY }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = COLORS.PRIMARY_DARK;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = COLORS.PRIMARY;
+              }}
             >
               🔄 Retry
             </button>
@@ -177,21 +185,28 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-8 bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen">
+      <div className="p-6 space-y-8 min-h-screen" style={{ backgroundColor: COLORS.BACKGROUND }}>
         {/* Streamlined Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
           <div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">🐾 Pet Analytics Dashboard</h1>
-            <p className="text-gray-600">Monitor your pet community's growth and engagement</p>
+            <h1 className="text-4xl font-bold mb-2" style={{ color: COLORS.TEXT }}>🐾 Pet Analytics Dashboard</h1>
+            <p style={{ color: COLORS.TEXT_MUTED }}>Monitor your pet community's growth and engagement</p>
           </div>
           <div className="flex items-center space-x-3">
-            <div className="bg-white px-4 py-2 rounded-xl border border-orange-200 shadow-sm">
-              <span className="text-sm text-gray-500">Last Updated:</span>
-              <span className="text-sm font-bold text-orange-600 ml-2">{new Date().toLocaleTimeString()}</span>
+            <div className="px-4 py-2 rounded-xl shadow-sm" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
+              <span className="text-sm" style={{ color: COLORS.TEXT_MUTED }}>Last Updated:</span>
+              <span className="text-sm font-bold ml-2" style={{ color: COLORS.PRIMARY }}>{new Date().toLocaleTimeString()}</span>
             </div>
             <button
               onClick={fetchDashboardStats}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-6 py-3 rounded-xl hover:from-orange-600 hover:to-amber-600 transition-all duration-300 shadow-lg hover:shadow-xl font-medium flex items-center"
+              className="px-6 py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl font-medium flex items-center"
+              style={{ backgroundColor: COLORS.PRIMARY, color: COLORS.SECONDARY }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = COLORS.PRIMARY_DARK;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = COLORS.PRIMARY;
+              }}
             >
               🔄 <span className="ml-1">Refresh</span>
             </button>
@@ -205,7 +220,7 @@ export default function DashboardPage() {
             value={stats.overview?.totalUsers || 0}
             icon="👥"
             trend={+12}
-            color="orange"
+            variant="primary"
             subtitle="Pet lovers"
           />
           <StatsCard
@@ -213,7 +228,7 @@ export default function DashboardPage() {
             value={stats.overview?.activeUsers || 0}
             icon="🟢"
             trend={+8}
-            color="green"
+            variant="success"
             subtitle="This month"
           />
           <StatsCard
@@ -221,7 +236,7 @@ export default function DashboardPage() {
             value={stats.overview?.totalPosts || 0}
             icon="📝"
             trend={+15}
-            color="purple"
+            variant="accent"
             subtitle="Pet moments"
           />
           <StatsCard
@@ -229,7 +244,7 @@ export default function DashboardPage() {
             value={stats.overview?.totalTokenTransactions || 0}
             icon="🪙"
             trend={+5}
-            color="yellow"
+            variant="warning"
             subtitle="Transactions"
           />
           <StatsCard
@@ -237,7 +252,7 @@ export default function DashboardPage() {
             value={stats.overview?.totalReferrals || 0}
             icon="🔗"
             trend={+20}
-            color="red"
+            variant="primary"
             subtitle="New members"
           />
         </div>
@@ -245,8 +260,8 @@ export default function DashboardPage() {
         {/* Essential Charts Grid - Simplified */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* User Growth Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+          <div className="p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
+            <h3 className="text-xl font-bold mb-4 flex items-center" style={{ color: COLORS.TEXT }}>
               📈 Pet Lover Growth (Last 30 Days)
             </h3>
             {getUserGrowthChartData() && (
@@ -258,8 +273,8 @@ export default function DashboardPage() {
           </div>
 
           {/* Posts Growth Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+          <div className="p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
+            <h3 className="text-xl font-bold mb-4 flex items-center" style={{ color: COLORS.TEXT }}>
               📱 Pet Posts Created (Last 30 Days)
             </h3>
             {getPostsGrowthChartData() && (
@@ -270,30 +285,68 @@ export default function DashboardPage() {
             )}
           </div>
 
-    
+          {/* User Verification Status */}
+          <div className="p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
+            <h3 className="text-xl font-bold mb-4 flex items-center" style={{ color: COLORS.TEXT }}>
+              ✅ User Verification Status
+            </h3>
+            {getUserVerificationChartData() && (
+              <DoughnutChart
+                data={getUserVerificationChartData()}
+                height={300}
+              />
+            )}
+          </div>
+
+          {/* Quick Stats Summary */}
+          <div className="p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
+            <h3 className="text-xl font-bold mb-4 flex items-center" style={{ color: COLORS.TEXT }}>
+              📊 Quick Overview
+            </h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: `${COLORS.PRIMARY}20` }}>
+                <span className="font-medium" style={{ color: COLORS.TEXT }}>💬 Total Comments</span>
+                <span className="font-bold text-lg" style={{ color: COLORS.PRIMARY }}>{stats.overview?.totalComments || 0}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: `${COLORS.EMERALD_500}20` }}>
+                <span className="font-medium" style={{ color: COLORS.TEXT }}>❤️ Total Likes</span>
+                <span className="font-bold text-lg" style={{ color: COLORS.EMERALD_500 }}>{stats.overview?.totalLikes || 0}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: `${COLORS.BLUE_500}20` }}>
+                <span className="font-medium" style={{ color: COLORS.TEXT }}>� Total Follows</span>
+                <span className="font-bold text-lg" style={{ color: COLORS.BLUE_500 }}>{stats.overview?.totalFollows || 0}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 rounded-lg" style={{ backgroundColor: `${COLORS.AMBER_500}20` }}>
+                <span className="font-medium" style={{ color: COLORS.TEXT }}>🐾 Pet Listings</span>
+                <span className="font-bold text-lg" style={{ color: COLORS.AMBER_500 }}>{stats.overview?.totalPetListings || 0}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Additional Stats */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Users */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+          <div className="p-6 rounded-xl shadow-lg" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
+            <h3 className="text-xl font-bold mb-4 flex items-center" style={{ color: COLORS.TEXT }}>
               🆕 Recent Pet Lovers
             </h3>
             <div className="space-y-3">
               {stats.users?.recent?.map((user, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-100">
+                <div key={index} className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: COLORS.NEUTRAL_800, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
                   <div>
-                    <div className="font-semibold text-gray-800">{user.fullName}</div>
-                    <div className="text-sm text-gray-600">{user.email}</div>
+                    <div className="font-semibold" style={{ color: COLORS.TEXT }}>{user.fullName}</div>
+                    <div className="text-sm" style={{ color: COLORS.TEXT_MUTED }}>{user.email}</div>
                   </div>
                   <div className="text-right">
-                    <div className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${
-                      user.emailVerify ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
-                    }`}>
+                    <div className={`inline-flex px-3 py-1 rounded-full text-xs font-bold`} style={{
+                      backgroundColor: user.emailVerify ? `${COLORS.EMERALD_500}20` : `${COLORS.ACCENT}20`,
+                      color: user.emailVerify ? COLORS.EMERALD_500 : COLORS.ACCENT,
+                      border: `1px solid ${user.emailVerify ? COLORS.EMERALD_500 : COLORS.ACCENT}`
+                    }}>
                       {user.emailVerify ? '✅ Verified' : '⏳ Pending'}
                     </div>
-                    <div className="text-sm text-gray-500 mt-1 font-medium">
+                    <div className="text-sm mt-1 font-medium" style={{ color: COLORS.TEXT_MUTED }}>
                       {format(parseISO(user.createdAt), 'MMM dd, yyyy')}
                     </div>
                   </div>
@@ -303,29 +356,30 @@ export default function DashboardPage() {
           </div>
 
           {/* Top Users by Tokens */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+          <div className="p-6 rounded-xl shadow-lg" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
+            <h3 className="text-xl font-bold mb-4 flex items-center" style={{ color: COLORS.TEXT }}>
               🏆 Top PetToken Earners
             </h3>
             <div className="space-y-3">
               {stats.users?.topByTokens?.slice(0, 5).map((user, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-100">
+                <div key={index} className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: COLORS.NEUTRAL_800, border: `1px solid ${COLORS.BORDER_MUTED}` }}>
                   <div className="flex items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold mr-3 ${
-                      index === 0 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
-                      index === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-400' :
-                      index === 2 ? 'bg-gradient-to-r from-orange-400 to-red-400' :
-                      'bg-gradient-to-r from-orange-500 to-amber-500'
-                    }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold mr-3`} style={{
+                      backgroundColor: index === 0 ? COLORS.PRIMARY :
+                                     index === 1 ? COLORS.GRAY_400 :
+                                     index === 2 ? COLORS.AMBER_500 :
+                                     COLORS.NEUTRAL_600,
+                      color: COLORS.SECONDARY
+                    }}>
                       {index < 3 ? ['🥇', '🥈', '🥉'][index] : index + 1}
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-800">{user.fullName}</div>
-                      <div className="text-sm text-gray-600">@{user.username}</div>
+                      <div className="font-semibold" style={{ color: COLORS.TEXT }}>{user.fullName}</div>
+                      <div className="text-sm" style={{ color: COLORS.TEXT_MUTED }}>@{user.username}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-orange-600 text-lg">{user.tokens} 🪙</div>
+                    <div className="font-bold text-lg" style={{ color: COLORS.PRIMARY }}>{user.tokens} 🪙</div>
                   </div>
                 </div>
               ))}

@@ -1,5 +1,6 @@
 'use client';
 
+import { COLORS } from '@/lib/colors';
 import {
   Chart as ChartJS,
   ArcElement,
@@ -23,6 +24,7 @@ export default function DoughnutChart({ data, options, title, height = 300 }) {
           },
           usePointStyle: true,
           padding: 20,
+          color: '#FFFFFF',
         },
       },
       title: {
@@ -32,12 +34,13 @@ export default function DoughnutChart({ data, options, title, height = 300 }) {
           size: 16,
           weight: 'bold',
         },
+        color: '#FFFFFF',
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        titleColor: 'white',
-        bodyColor: 'white',
-        borderColor: 'rgba(255, 255, 255, 0.3)',
+        backgroundColor: '#1E1E1E',
+        titleColor: '#FFFFFF',
+        bodyColor: '#FFFFFF',
+        borderColor: '#F4CE05',
         borderWidth: 1,
         callbacks: {
           label: function(context) {

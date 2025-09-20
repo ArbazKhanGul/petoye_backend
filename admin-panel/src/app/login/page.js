@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { COLORS } from '../../constants/colors';
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -25,7 +26,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/admin/auth/login`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6000/api'}/admin/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,23 +55,23 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-100 via-amber-50 to-yellow-100 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" style={{ backgroundColor: COLORS.BACKGROUND }}>
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="mx-auto h-16 w-auto flex items-center justify-center">
-            <div className="h-12 w-12 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white text-2xl">🐾</span>
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center shadow-lg" style={{ backgroundColor: COLORS.PRIMARY }}>
+              <span className="text-2xl" style={{ color: COLORS.SECONDARY }}>🐾</span>
             </div>
-            <span className="ml-3 text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">Petoye</span>
+            <span className="ml-3 text-3xl font-bold" style={{ color: COLORS.PRIMARY }}>Petoye</span>
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-800">
+          <h2 className="mt-6 text-center text-3xl font-extrabold" style={{ color: COLORS.TEXT }}>
             🔐 Admin Sign In
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 font-medium">
+          <p className="mt-2 text-center text-sm font-medium" style={{ color: COLORS.TEXT_MUTED }}>
             Access your pet community dashboard
           </p>
         </div>
-        <form className="mt-8 space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-orange-100" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6 p-8 rounded-2xl shadow-xl" style={{ backgroundColor: COLORS.BACKGROUND_CARD, border: `1px solid ${COLORS.BORDER_MUTED}` }} onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email" className="sr-only">
@@ -82,7 +83,13 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-4 py-3 border border-orange-200 placeholder-gray-500 text-gray-900 rounded-t-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm bg-orange-50"
+                className="appearance-none rounded-none relative block w-full px-4 py-3 rounded-t-xl focus:outline-none focus:ring-2 focus:z-10 sm:text-sm"
+                style={{ 
+                  backgroundColor: COLORS.NEUTRAL_800,
+                  border: `1px solid ${COLORS.BORDER_MUTED}`,
+                  color: COLORS.TEXT,
+                  focusRingColor: COLORS.PRIMARY
+                }}
                 placeholder="📧 Email address"
                 value={formData.email}
                 onChange={handleChange}
@@ -98,7 +105,13 @@ export default function LoginPage() {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none rounded-none relative block w-full px-4 py-3 border border-orange-200 placeholder-gray-500 text-gray-900 rounded-b-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm bg-orange-50"
+                className="appearance-none rounded-none relative block w-full px-4 py-3 rounded-b-xl focus:outline-none focus:ring-2 focus:z-10 sm:text-sm"
+                style={{ 
+                  backgroundColor: COLORS.NEUTRAL_800,
+                  border: `1px solid ${COLORS.BORDER_MUTED}`,
+                  color: COLORS.TEXT,
+                  focusRingColor: COLORS.PRIMARY
+                }}
                 placeholder="🔒 Password"
                 value={formData.password}
                 onChange={handleChange}
@@ -107,7 +120,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-lg font-medium">
+            <div className="px-4 py-3 rounded-lg font-medium" style={{ backgroundColor: `${COLORS.ACCENT}20`, border: `2px solid ${COLORS.ACCENT}`, color: COLORS.ACCENT }}>
               ❌ {error}
             </div>
           )}
@@ -116,10 +129,26 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all duration-300"
+              className="group relative w-full flex justify-center py-3 px-4 border-transparent text-sm font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+              style={{ 
+                backgroundColor: COLORS.PRIMARY,
+                color: COLORS.SECONDARY,
+                opacity: loading ? 0.5 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.target.style.backgroundColor = COLORS.PRIMARY_DARK;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.target.style.backgroundColor = COLORS.PRIMARY;
+                }
+              }}
             >
               {loading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: COLORS.SECONDARY }}></div>
               ) : (
                 '🚀 Sign in to Dashboard'
               )}

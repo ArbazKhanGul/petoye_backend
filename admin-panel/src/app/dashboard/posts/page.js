@@ -86,31 +86,31 @@ export default function PostsPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 min-h-screen">
+      <div className="p-6 min-h-screen">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+          <h1 className="text-3xl font-bold text-white mb-2 flex items-center">
             🐾 Pet Post Management
           </h1>
-          <p className="text-gray-600">Manage all pet posts and moments shared in the community</p>
+          <p className="text-white opacity-70">Manage all pet posts and moments shared in the community</p>
         </div>
 
         {/* Search */}
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-orange-100 mb-6">
+        <div className="bg-surface p-6 rounded-xl shadow-lg border border-primary mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-white mb-2">
                 🔍 Search Pet Posts
               </label>
               <input
                 type="text"
                 placeholder="Search by content, user, or keywords..."
-                className="w-full px-4 py-3 border border-orange-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full px-4 py-3 border border-primary bg-dark text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <div className="flex items-end">
-              <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-3 rounded-lg font-medium">
+              <div className="bg-gradient-to-r from-primary to-primary-dark text-black px-4 py-3 rounded-lg font-medium">
                 📊 Total Posts: {posts.length}
               </div>
             </div>
@@ -118,37 +118,37 @@ export default function PostsPage() {
         </div>
 
         {/* Posts Grid */}
-        <div className="bg-white rounded-xl shadow-lg border border-orange-100">
+        <div className="bg-surface rounded-xl shadow-lg border border-primary">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-orange-500"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-primary"></div>
             </div>
           ) : posts.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-white opacity-70">
               <div className="text-6xl mb-4">🐾</div>
               <div className="text-xl font-medium">No pet posts found</div>
-              <div className="text-gray-400 mt-2">Try adjusting your search criteria</div>
+              <div className="text-white opacity-50 mt-2">Try adjusting your search criteria</div>
             </div>
           ) : (
-            <div className="divide-y divide-orange-100">
+            <div className="divide-y divide-primary">
               {posts.map((post) => (
-                <div key={post._id} className="p-6 hover:bg-orange-50 transition-colors">
+                <div key={post._id} className="p-6 hover:bg-dark transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4 flex-1">
                       {/* User Avatar */}
                       <div className="relative">
                         {post.userId?.profileImage ? (
                           <img
-                            src={`http://localhost:8000/api${post.userId.profileImage}`}
+                            src={`http://localhost:6000/api${post.userId.profileImage}`}
                             alt={post.userId.fullName}
-                            className="w-14 h-14 rounded-full object-cover border-3 border-orange-200"
+                            className="w-14 h-14 rounded-full object-cover border-3 border-primary"
                             onError={(e) => {
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'flex';
                             }}
                           />
                         ) : null}
-                        <div className="w-14 h-14 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full flex items-center justify-center text-white font-bold text-xl border-3 border-orange-200">
+                        <div className="w-14 h-14 bg-gradient-to-r from-primary to-primary-dark rounded-full flex items-center justify-center text-black font-bold text-xl border-3 border-primary">
                           {post.userId?.fullName?.charAt(0) || '🐾'}
                         </div>
                       </div>
@@ -156,13 +156,13 @@ export default function PostsPage() {
                       {/* Post Content */}
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-3">
-                          <h3 className="text-lg font-bold text-gray-800">
+                          <h3 className="text-lg font-bold text-white">
                             {post.userId?.fullName || 'Unknown User'}
                           </h3>
-                          <span className="text-sm text-orange-600 font-medium bg-orange-100 px-2 py-1 rounded-full">
+                          <span className="text-sm text-black font-medium bg-primary px-2 py-1 rounded-full">
                             @{post.userId?.username || 'unknown'}
                           </span>
-                          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                          <span className="text-sm text-white opacity-70 bg-surface px-2 py-1 rounded-full">
                             📅 {new Date(post.createdAt).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'short',

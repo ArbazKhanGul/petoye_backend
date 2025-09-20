@@ -1,4 +1,6 @@
-export default function StatsCard({ title, value, change, changeType, icon, trend, subtitle, color = "orange" }) {
+import { COLORS } from '@/lib/colors';
+
+export default function StatsCard({ title, value, change, changeType, icon, trend, subtitle, variant = "primary" }) {
   const formatValue = (val) => {
     if (typeof val === 'number') {
       if (val >= 1000000) {
@@ -11,39 +13,39 @@ export default function StatsCard({ title, value, change, changeType, icon, tren
     return val;
   };
 
-  const colorClasses = {
-    orange: "bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200 shadow-md hover:shadow-lg",
-    green: "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-md hover:shadow-lg", 
-    yellow: "bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200 shadow-md hover:shadow-lg",
-    red: "bg-gradient-to-br from-red-50 to-pink-50 border-red-200 shadow-md hover:shadow-lg",
-    purple: "bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200 shadow-md hover:shadow-lg",
-    blue: "bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200 shadow-md hover:shadow-lg",
+  const cardClasses = {
+    primary: "bg-gradient-to-br from-surface-900 to-surface-800 border-primary shadow-lg hover:shadow-xl",
+    secondary: "bg-gradient-to-br from-dark-800 to-dark-700 border-secondary shadow-lg hover:shadow-xl",
+    accent: "bg-gradient-to-br from-surface-900 to-surface-800 border-accent shadow-lg hover:shadow-xl",
+    success: "bg-gradient-to-br from-surface-900 to-surface-800 border-green-500 shadow-lg hover:shadow-xl",
+    warning: "bg-gradient-to-br from-surface-900 to-surface-800 border-yellow-500 shadow-lg hover:shadow-xl",
+    error: "bg-gradient-to-br from-surface-900 to-surface-800 border-red-500 shadow-lg hover:shadow-xl",
   };
 
   const iconColorClasses = {
-    orange: "text-orange-600",
-    green: "text-green-600",
-    yellow: "text-yellow-600", 
-    red: "text-red-600",
-    purple: "text-purple-600",
-    blue: "text-blue-600",
+    primary: "text-primary",
+    secondary: "text-white",
+    accent: "text-accent",
+    success: "text-green-500",
+    warning: "text-yellow-500",
+    error: "text-red-500",
   };
 
   return (
-    <div className={`${colorClasses[color]} border-2 rounded-xl p-6 transition-all duration-300 hover:scale-105`}>
+    <div className={`${cardClasses[variant]} border-2 rounded-xl p-6 transition-all duration-300 hover:scale-105`}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center">
-            <span className={`text-3xl mr-3 ${iconColorClasses[color]} drop-shadow-sm`}>{icon}</span>
+            <span className={`text-3xl mr-3 ${iconColorClasses[variant]} drop-shadow-sm`}>{icon}</span>
             <div>
-              <p className="text-sm font-semibold text-gray-700 mb-1">{title}</p>
-              <p className="text-3xl font-bold text-gray-800">{formatValue(value)}</p>
+              <p className="text-sm font-semibold text-white opacity-70 mb-1">{title}</p>
+              <p className="text-3xl font-bold text-white">{formatValue(value)}</p>
               {subtitle && (
-                <p className="text-xs text-gray-600 mt-1 font-medium">{subtitle}</p>
+                <p className="text-xs text-white opacity-50 mt-1 font-medium">{subtitle}</p>
               )}
               {change && (
                 <p className={`text-sm font-medium ${
-                  changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                  changeType === 'positive' ? 'text-green-500' : 'text-red-500'
                 }`}>
                   {change} from last month
                 </p>
@@ -56,15 +58,15 @@ export default function StatsCard({ title, value, change, changeType, icon, tren
           <div className="text-right">
             <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold shadow-sm ${
               trend >= 0 
-                ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200' 
-                : 'bg-gradient-to-r from-red-100 to-pink-100 text-red-800 border border-red-200'
+                ? 'bg-gradient-to-r from-green-800 to-green-700 text-green-400 border border-green-500' 
+                : 'bg-gradient-to-r from-red-800 to-red-700 text-red-400 border border-red-500'
             }`}>
               <span className="mr-1 text-lg">
                 {trend >= 0 ? '📈' : '📉'}
               </span>
               {Math.abs(trend)}%
             </div>
-            <p className="text-xs text-gray-600 mt-1 font-medium">vs last month</p>
+            <p className="text-xs text-white opacity-50 mt-1 font-medium">vs last month</p>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { COLORS } from '@/lib/colors';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -32,6 +33,7 @@ export default function BarChart({ data, options, title, height = 300 }) {
             size: 12,
           },
           usePointStyle: true,
+          color: '#FFFFFF',
         },
       },
       title: {
@@ -41,12 +43,13 @@ export default function BarChart({ data, options, title, height = 300 }) {
           size: 16,
           weight: 'bold',
         },
+        color: '#FFFFFF',
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        titleColor: 'white',
-        bodyColor: 'white',
-        borderColor: 'rgba(255, 255, 255, 0.3)',
+        backgroundColor: '#1E1E1E',
+        titleColor: '#FFFFFF',
+        bodyColor: '#FFFFFF',
+        borderColor: '#F4CE05',
         borderWidth: 1,
       },
     },
@@ -60,17 +63,19 @@ export default function BarChart({ data, options, title, height = 300 }) {
           font: {
             size: 11,
           },
+          color: 'rgba(255,255,255,0.7)',
         },
       },
       y: {
         display: true,
         grid: {
-          color: 'rgba(0, 0, 0, 0.1)',
+          color: 'rgba(244,206,5,0.3)',
         },
         ticks: {
           font: {
             size: 11,
           },
+          color: 'rgba(255,255,255,0.7)',
         },
         beginAtZero: true,
       },
