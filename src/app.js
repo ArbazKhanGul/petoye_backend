@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const http = require("http");
+const { initializeSocket } = require("./socket");
 const errorMiddleware = require("./middleware/errorMiddleware");
 const auth = require("./routes/authRoute");
 const profile = require("./routes/profileRoute");
@@ -12,6 +14,16 @@ const setupSwagger = require("../swagger");
 require("./config/db");
 
 const app = express();
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+const io = initializeSocket(server);
+
+// Make io available to routes/controllers
+app.set("io", io);
+
 app.use(
   cors({
     origin: ["*", process.env.CLIENT_URL],
@@ -44,6 +56,7 @@ app.use("/api/comments", comments);
 app.use("/api/pets", require("./routes/petRoute"));
 app.use("/api/follow", require("./routes/followRoute"));
 app.use("/api/coins", require("./routes/coinRoute"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
@@ -54,6 +67,7 @@ setupSwagger(app);
 //Error Handling
 app.use(errorMiddleware);
 
-app.listen(process.env.PORT, () => {
-  console.log("Listening at port number " + process.env.PORT);
+server.listen(process.env.PORT, () => {
+  console.log("🚀 Server listening on port " + process.env.PORT);
+  console.log("📱 Socket.IO ready for real-time communication");
 });

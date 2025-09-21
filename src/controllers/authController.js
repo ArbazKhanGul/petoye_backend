@@ -9,6 +9,7 @@ const {
   Referral,
   TokenTransaction,
   RewardConfig,
+  Notification,
 } = require("../models");
 const { ms, sendOtpEmail } = require("../helpers");
 const { generateUsername } = require("../helpers/usernameGenerator");
@@ -315,6 +316,69 @@ exports.verifyOtp = async (req, res, next) => {
           referralCode: referral.referralCode, // Track the referral code used
         },
       });
+
+      // === REFERRAL NOTIFICATION ===
+      // Send notification to referrer about successful referral reward
+      if (rewardAmount > 0) {
+        // Get referrer details for notification
+        const referrer = await User.findById(
+          referral.referrer,
+          "fullName username"
+        );
+
+        if (referrer) {
+          // Create referral reward notification
+          const referralNotification = await Notification.create({
+            userId: referral.referrer,
+            type: "referral_reward",
+            title: "Referral Reward Earned!",
+            message: `${user.fullName} joined using your referral code. You earned ${rewardAmount} coins!`,
+            triggeredBy: user._id,
+            relatedData: {
+              referralId: referral._id,
+              coinData: {
+                amount: rewardAmount,
+                reason: "referral",
+              },
+              metadata: {
+                refereeName: user.fullName,
+                refereeUsername: user.username,
+                referralCode: referral.referralCode,
+              },
+            },
+            actionType: "view_coins",
+            priority: "medium",
+          });
+
+          // Send notification using the io instance
+          const io = req.app.get("io");
+          if (io && io.notificationService) {
+            await io.notificationService.sendNotification(
+              referral.referrer.toString(),
+              {
+                id: referralNotification._id,
+                type: "referral_reward",
+                title: "Referral Reward Earned!",
+                message: `${user.fullName} joined using your referral code. You earned ${rewardAmount} coins!`,
+                data: {
+                  type: "referral_reward",
+                  referralId: referral._id,
+                  coinAmount: rewardAmount,
+                  reason: "referral",
+                  refereeName: user.fullName,
+                  refereeUsername: user.username,
+                  referralCode: referral.referralCode,
+                  actionType: "view_coins",
+                },
+              }
+            );
+
+            console.log(
+              `🎉 Referral reward notification sent to ${referral.referrer} (+${rewardAmount} coins from ${user.fullName})`
+            );
+          }
+        }
+      }
     }
 
     res.status(200).json({ message: "OTP verified successfully" });

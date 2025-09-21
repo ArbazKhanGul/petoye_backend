@@ -1,5 +1,5 @@
 const AppError = require("../errors/appError");
-const { User, Follow } = require("../models");
+const { User, Follow, Notification } = require("../models");
 const mongoose = require("mongoose");
 
 /**
@@ -63,6 +63,65 @@ exports.followUser = async (req, res, next) => {
     );
 
     await session.commitTransaction();
+
+    // === FOLLOW NOTIFICATION ===
+    // Send notification to the user being followed
+    try {
+      // Get follower details for notification
+      const follower = await User.findById(
+        currentUserId,
+        "fullName username profileImage"
+      );
+
+      if (follower) {
+        // Create follow notification
+        const followNotification = await Notification.create({
+          userId: targetUserId,
+          type: "user_follow",
+          title: "New Follower",
+          message: `${follower.fullName} started following you`,
+          triggeredBy: currentUserId,
+          relatedData: {
+            followerId: currentUserId,
+            metadata: {
+              followerName: follower.fullName,
+              followerUsername: follower.username,
+            },
+          },
+          actionType: "view_profile",
+          priority: "medium",
+        });
+
+        // Send notification using the io instance
+        const io = req.app.get("io");
+        if (io && io.notificationService) {
+          await io.notificationService.sendNotification(
+            targetUserId.toString(),
+            {
+              id: followNotification._id,
+              type: "user_follow",
+              title: "New Follower",
+              message: `${follower.fullName} started following you`,
+              data: {
+                type: "user_follow",
+                followerId: currentUserId,
+                followerName: follower.fullName,
+                followerUsername: follower.username,
+                followerImage: follower.profileImage,
+                actionType: "view_profile",
+              },
+            }
+          );
+
+          console.log(
+            `👥 Follow notification sent to ${targetUserId} from ${follower.fullName}`
+          );
+        }
+      }
+    } catch (notificationError) {
+      // Don't fail the follow action if notification fails
+      console.error("Error sending follow notification:", notificationError);
+    }
 
     res.status(200).json({
       success: true,
@@ -131,6 +190,65 @@ exports.unfollowUser = async (req, res, next) => {
     );
 
     await session.commitTransaction();
+
+    // === UNFOLLOW NOTIFICATION ===
+    // Send notification to the user being unfollowed (optional - some apps don't do this)
+    try {
+      // Get unfollower details for notification
+      const unfollower = await User.findById(
+        currentUserId,
+        "fullName username profileImage"
+      );
+
+      if (unfollower) {
+        // Create unfollow notification (low priority as it's less important)
+        const unfollowNotification = await Notification.create({
+          userId: targetUserId,
+          type: "user_unfollow",
+          title: "User Unfollowed",
+          message: `${unfollower.fullName} unfollowed you`,
+          triggeredBy: currentUserId,
+          relatedData: {
+            unfollowerId: currentUserId,
+            metadata: {
+              unfollowerName: unfollower.fullName,
+              unfollowerUsername: unfollower.username,
+            },
+          },
+          actionType: "view_profile",
+          priority: "low",
+        });
+
+        // Send notification using the io instance (socket only - don't push for unfollows)
+        const io = req.app.get("io");
+        if (io && io.notificationService) {
+          await io.notificationService.sendSocketOnlyNotification(
+            targetUserId.toString(),
+            {
+              id: unfollowNotification._id,
+              type: "user_unfollow",
+              title: "User Unfollowed",
+              message: `${unfollower.fullName} unfollowed you`,
+              data: {
+                type: "user_unfollow",
+                unfollowerId: currentUserId,
+                unfollowerName: unfollower.fullName,
+                unfollowerUsername: unfollower.username,
+                unfollowerImage: unfollower.profileImage,
+                actionType: "view_profile",
+              },
+            }
+          );
+
+          console.log(
+            `👥➖ Unfollow notification sent to ${targetUserId} from ${unfollower.fullName}`
+          );
+        }
+      }
+    } catch (notificationError) {
+      // Don't fail the unfollow action if notification fails
+      console.error("Error sending unfollow notification:", notificationError);
+    }
 
     res.status(200).json({
       success: true,

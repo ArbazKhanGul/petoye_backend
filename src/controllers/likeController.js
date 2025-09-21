@@ -4,6 +4,7 @@ const {
   User,
   TokenTransaction,
   RewardConfig,
+  Notification,
 } = require("../models");
 const AppError = require("../errors/appError");
 
@@ -52,6 +53,12 @@ exports.toggleLike = async (req, res, next) => {
 
       let tokensEarned = 0;
 
+      // Update post like count first (needed for notification data)
+      await Post.findByIdAndUpdate(postId, { $inc: { likesCount: 1 } });
+
+      // Get updated count
+      const updatedPost = await Post.findById(postId, "likesCount");
+
       // If the post is not the user's own post, process token reward
       if (post.userId.toString() !== userId.toString()) {
         // Check if this user has already earned a reward for liking this post
@@ -90,15 +97,107 @@ exports.toggleLike = async (req, res, next) => {
             );
 
             tokensEarned = tokenAmount;
+
+            // === NOTIFICATION LOGIC ===
+            // Only create notifications for first-time likes (when rewards are given)
+            const liker = await User.findById(
+              userId,
+              "fullName username profileImage"
+            );
+
+            // 1. Create and send POST LIKE notification
+            const likeNotification = await Notification.create({
+              userId: post.userId,
+              type: "post_like",
+              title: "New Like",
+              message: `${liker.fullName} liked your post`,
+              triggeredBy: userId,
+              relatedData: {
+                postId: postId,
+                metadata: {
+                  likeCount: updatedPost.likesCount,
+                },
+              },
+              actionType: "view_post",
+              priority: "medium",
+            });
+
+            // Send like notification with both socket and push fallback
+            const io = req.app.get("io");
+            if (io && io.notificationService) {
+              await io.notificationService.sendNotification(
+                post.userId.toString(),
+                {
+                  id: likeNotification._id,
+                  type: "post_like",
+                  title: "New Like",
+                  message: `${liker.fullName} liked your post`,
+                  data: {
+                    type: "post_like",
+                    postId: postId,
+                    likerId: userId,
+                    likerName: liker.fullName,
+                    likerImage: liker.profileImage,
+                    likeCount: updatedPost.likesCount,
+                    actionType: "view_post",
+                  },
+                }
+              );
+            }
+
+            console.log(
+              `📱 Like notification sent to ${post.userId} from ${liker.fullName}`
+            );
+
+            // 2. Create and send COIN notification
+            const coinNotification = await Notification.create({
+              userId: post.userId,
+              type: "coin_earned_like",
+              title: "Coins Earned!",
+              message: `You earned ${tokensEarned} coins from getting a like`,
+              triggeredBy: userId,
+              relatedData: {
+                postId: postId,
+                coinData: {
+                  amount: tokensEarned,
+                  reason: "like",
+                  transactionId: null, // Will be set after transaction is created
+                },
+                metadata: {
+                  fromLiker: liker.fullName,
+                },
+              },
+              actionType: "view_coins",
+              priority: "low",
+            });
+
+            // Send coin notification ONLY if user is online
+            if (io && io.notificationService) {
+              await io.notificationService.sendSocketOnlyNotification(
+                post.userId.toString(),
+                {
+                  id: coinNotification._id,
+                  type: "coin_earned_like",
+                  title: "Coins Earned!",
+                  message: `You earned ${tokensEarned} coins from getting a like`,
+                  data: {
+                    type: "coin_earned_like",
+                    postId: postId,
+                    coinAmount: tokensEarned,
+                    reason: "like",
+                    fromLiker: liker.fullName,
+                    actionType: "view_coins",
+                  },
+                }
+              );
+            }
+
+            console.log(
+              `🪙 Coin notification processed for user ${post.userId} (+${tokensEarned} coins)`
+            );
           }
         }
       }
-
-      // Update post like count
-      await Post.findByIdAndUpdate(postId, { $inc: { likesCount: 1 } });
-
-      // Get updated count
-      const updatedPost = await Post.findById(postId, "likesCount");
 
       // Return success response for like
       return res.status(200).json({
@@ -106,6 +205,7 @@ exports.toggleLike = async (req, res, next) => {
         message: "Post liked successfully",
         liked: true,
         likesCount: updatedPost.likesCount,
+        tokensEarned: tokensEarned,
       });
     }
   } catch (error) {

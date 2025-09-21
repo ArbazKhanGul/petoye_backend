@@ -1,4 +1,4 @@
-const { Post, Comment } = require("../models");
+const { Post, Comment, User, Notification } = require("../models");
 const AppError = require("../errors/appError");
 
 /**
@@ -47,6 +47,130 @@ exports.addComment = async (req, res, next) => {
       path: "user",
       select: "fullName profileImage",
     });
+
+    // === NOTIFICATION LOGIC ===
+    // Only send notifications if it's not the user's own post/comment
+    if (isReply) {
+      // For replies: notify the parent comment author
+      const parentComment = await Comment.findById(parentCommentId).populate(
+        "user"
+      );
+      if (
+        parentComment &&
+        parentComment.user._id.toString() !== userId.toString()
+      ) {
+        const replier = await User.findById(
+          userId,
+          "fullName username profileImage"
+        );
+
+        // Create reply notification
+        const replyNotification = await Notification.create({
+          userId: parentComment.user._id,
+          type: "comment_reply",
+          title: "New Reply",
+          message: `${replier.fullName} replied to your comment`,
+          triggeredBy: userId,
+          relatedData: {
+            postId: postId,
+            commentId: parentCommentId,
+            replyId: comment._id,
+            metadata: {
+              replyContent:
+                content.substring(0, 100) + (content.length > 100 ? "..." : ""),
+            },
+          },
+          actionType: "view_post",
+          priority: "medium",
+        });
+
+        // Send reply notification
+        const io = req.app.get("io");
+        if (io && io.notificationService) {
+          await io.notificationService.sendNotification(
+            parentComment.user._id.toString(),
+            {
+              id: replyNotification._id,
+              type: "comment_reply",
+              title: "New Reply",
+              message: `${replier.fullName} replied to your comment`,
+              data: {
+                type: "comment_reply",
+                postId: postId,
+                commentId: parentCommentId,
+                replyId: comment._id,
+                replierName: replier.fullName,
+                replierImage: replier.profileImage,
+                replyContent:
+                  content.substring(0, 100) +
+                  (content.length > 100 ? "..." : ""),
+                actionType: "view_post",
+              },
+            }
+          );
+        }
+
+        console.log(
+          `💬 Reply notification sent to ${parentComment.user._id} from ${replier.fullName}`
+        );
+      }
+    } else {
+      // For top-level comments: notify the post owner
+      if (post.userId.toString() !== userId.toString()) {
+        const commenter = await User.findById(
+          userId,
+          "fullName username profileImage"
+        );
+
+        // Create comment notification
+        const commentNotification = await Notification.create({
+          userId: post.userId,
+          type: "post_comment",
+          title: "New Comment",
+          message: `${commenter.fullName} commented on your post`,
+          triggeredBy: userId,
+          relatedData: {
+            postId: postId,
+            commentId: comment._id,
+            metadata: {
+              commentContent:
+                content.substring(0, 100) + (content.length > 100 ? "..." : ""),
+            },
+          },
+          actionType: "view_post",
+          priority: "medium",
+        });
+
+        // Send comment notification
+        const io = req.app.get("io");
+        if (io && io.notificationService) {
+          await io.notificationService.sendNotification(
+            post.userId.toString(),
+            {
+              id: commentNotification._id,
+              type: "post_comment",
+              title: "New Comment",
+              message: `${commenter.fullName} commented on your post`,
+              data: {
+                type: "post_comment",
+                postId: postId,
+                commentId: comment._id,
+                commenterName: commenter.fullName,
+                commenterImage: commenter.profileImage,
+                commentContent:
+                  content.substring(0, 100) +
+                  (content.length > 100 ? "..." : ""),
+                actionType: "view_post",
+              },
+            }
+          );
+        }
+
+        console.log(
+          `💬 Comment notification sent to ${post.userId} from ${commenter.fullName}`
+        );
+      }
+    }
 
     res.status(201).json({
       success: true,
