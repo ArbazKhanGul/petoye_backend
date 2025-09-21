@@ -4,8 +4,11 @@ const mongoose = require("mongoose");
 // Get user notifications with cursor-based pagination
 const getUserNotifications = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { cursor, limit = 20, type, read } = req.query;
+
+    console.log("📱 Fetching notifications for user:", userId);
+    console.log("📱 Query params:", { cursor, limit, type, read });
 
     // Build filter query
     const filter = { userId };
@@ -17,7 +20,7 @@ const getUserNotifications = async (req, res) => {
 
     // Add read status filter if provided
     if (read !== undefined) {
-      filter.read = read === "true";
+      filter.isRead = read === "true";
     }
 
     // Add cursor-based pagination
@@ -25,8 +28,11 @@ const getUserNotifications = async (req, res) => {
       filter._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
 
+    console.log("📱 Final filter:", filter);
+
     // Convert limit to number and ensure it's within bounds
     const limitNum = Math.min(parseInt(limit), 50); // Max 50 notifications per request
+    console.log("🚀 ~ getUserNotifications ~ filter:", filter);
 
     // Fetch notifications
     const notifications = await Notification.find(filter)
@@ -88,7 +94,7 @@ const getUserNotifications = async (req, res) => {
 // Mark notification as read
 const markNotificationAsRead = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { notificationId } = req.params;
 
     // Validate notification ID
@@ -106,7 +112,7 @@ const markNotificationAsRead = async (req, res) => {
         userId, // Ensure user can only mark their own notifications
       },
       {
-        isisRead: true,
+        isRead: true,
         readAt: new Date(),
       },
       { new: true }
@@ -138,16 +144,16 @@ const markNotificationAsRead = async (req, res) => {
 // Mark all notifications as read
 const markAllNotificationsAsRead = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     // Update all unread notifications for the user
     const result = await Notification.updateMany(
       {
         userId,
-        isisRead: false,
+        isRead: false,
       },
       {
-        isisRead: true,
+        isRead: true,
         readAt: new Date(),
       }
     );
@@ -172,7 +178,7 @@ const markAllNotificationsAsRead = async (req, res) => {
 // Delete notification
 const deleteNotification = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { notificationId } = req.params;
 
     // Validate notification ID
@@ -214,7 +220,7 @@ const deleteNotification = async (req, res) => {
 // Get unread notification count
 const getUnreadCount = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     const unreadCount = await Notification.countDocuments({
       userId,
@@ -241,7 +247,7 @@ const getUnreadCount = async (req, res) => {
 // Clear all notifications for user
 const clearAllNotifications = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     const result = await Notification.deleteMany({ userId });
 
@@ -265,7 +271,7 @@ const clearAllNotifications = async (req, res) => {
 // Get notification statistics
 const getNotificationStats = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     // Get stats by type
     const statsByType = await Notification.aggregate([

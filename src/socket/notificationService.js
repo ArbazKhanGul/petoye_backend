@@ -1,4 +1,5 @@
 const connectionManager = require("./connectionManager");
+const OneSignal = require("onesignal-node");
 
 /**
  * Notification Service
@@ -8,6 +9,12 @@ const connectionManager = require("./connectionManager");
 class NotificationService {
   constructor(io) {
     this.io = io;
+
+    // Initialize OneSignal client
+    this.oneSignalClient = new OneSignal.Client(
+      process.env.ONESIGNAL_APP_ID,
+      process.env.ONESIGNAL_REST_API_KEY
+    );
   }
 
   /**
@@ -106,31 +113,103 @@ class NotificationService {
    */
   async sendPushNotification(userId, notification) {
     try {
-      // Here you would integrate with OneSignal API
-      // For now, just log what would be sent
-      console.log(`📱 Push notification for ${userId}:`, {
-        title: notification.title || "Petoye",
-        message: notification.message,
-        data: notification.data,
+      // Check if OneSignal is properly configured
+      if (
+        !process.env.ONESIGNAL_APP_ID ||
+        !process.env.ONESIGNAL_REST_API_KEY
+      ) {
+        console.warn(
+          "⚠️ OneSignal not configured - skipping push notification"
+        );
+        return false;
+      }
+
+      // Prepare notification data for OneSignal
+      const oneSignalNotification = {
+        contents: {
+          en: notification.message || "You have a new notification",
+        },
+        headings: {
+          en: notification.title || "Petoye",
+        },
+        include_external_user_ids: [userId],
+        data: {
+          notificationId: notification._id,
+          type: notification.type,
+          actionType: notification.actionType,
+          actionUrl: notification.actionUrl,
+          // Include relevant data for navigation based on notification type
+          ...(notification.relatedData && {
+            postId:
+              notification.relatedData.postId?._id ||
+              notification.relatedData.postId,
+            commentId:
+              notification.relatedData.commentId?._id ||
+              notification.relatedData.commentId,
+            followId:
+              notification.relatedData.followId?._id ||
+              notification.relatedData.followId,
+            // Coin data for coin notifications
+            ...(notification.relatedData.coinData && {
+              coinAmount: notification.relatedData.coinData.amount,
+              coinReason: notification.relatedData.coinData.reason,
+              transactionId: notification.relatedData.coinData.transactionId,
+            }),
+            // Referral data for referral notifications
+            ...(notification.relatedData.referralData && {
+              referralCode: notification.relatedData.referralData.referralCode,
+              newUserId: notification.relatedData.referralData.newUserId,
+              newUserName: notification.relatedData.referralData.newUserName,
+            }),
+            // Additional metadata
+            metadata: notification.relatedData.metadata,
+          }),
+          // Include triggeredBy user info for navigation
+          userId: notification.triggeredBy?._id || notification.triggeredBy,
+          triggeredByUser:
+            notification.triggeredBy?.username ||
+            notification.triggeredBy?.fullName,
+        },
+        // iOS specific settings
+        ios_badgeType: "Increase",
+        ios_badgeCount: 1,
+        // Android specific settings
+        android_accent_color: "FFF4CE05", // Your primary color
+        small_icon: "ic_notification",
+        large_icon: "ic_launcher",
+        // Sound and priority
+        priority: notification.priority === "urgent" ? 10 : 6,
+        android_channel_id: "petoye_notifications",
+      };
+
+      console.log(`📱 Sending push notification to ${userId}:`, {
+        title: oneSignalNotification.headings.en,
+        message: oneSignalNotification.contents.en,
+        data: oneSignalNotification.data,
       });
 
-      // Example OneSignal API call (you would implement this):
-      /*
-      const oneSignalClient = new OneSignal.Client(process.env.ONESIGNAL_APP_ID, process.env.ONESIGNAL_API_KEY);
-      
-      const notification = {
-        contents: { en: notification.message },
-        headings: { en: notification.title || 'Petoye' },
-        include_external_user_ids: [userId],
-        data: notification.data,
-      };
-      
-      await oneSignalClient.createNotification(notification);
-      */
+      // Send notification via OneSignal
+      const response = await this.oneSignalClient.createNotification(
+        oneSignalNotification
+      );
 
-      return true;
+      if (response.body && response.body.id) {
+        console.log(
+          `✅ Push notification sent successfully. OneSignal ID: ${response.body.id}`
+        );
+        return true;
+      } else {
+        console.error("❌ Failed to send push notification:", response.body);
+        return false;
+      }
     } catch (error) {
-      console.error("Error sending push notification:", error);
+      console.error("❌ Error sending push notification:", error);
+
+      // Log specific OneSignal errors
+      if (error.body) {
+        console.error("OneSignal error details:", error.body);
+      }
+
       return false;
     }
   }

@@ -95,22 +95,14 @@ exports.followUser = async (req, res, next) => {
         // Send notification using the io instance
         const io = req.app.get("io");
         if (io && io.notificationService) {
+          // Populate the full notification data for socket
+          const populatedNotification = await Notification.findById(
+            followNotification._id
+          ).populate("triggeredBy", "firstName lastName username profileImage");
+
           await io.notificationService.sendNotification(
             targetUserId.toString(),
-            {
-              id: followNotification._id,
-              type: "user_follow",
-              title: "New Follower",
-              message: `${follower.fullName} started following you`,
-              data: {
-                type: "user_follow",
-                followerId: currentUserId,
-                followerName: follower.fullName,
-                followerUsername: follower.username,
-                followerImage: follower.profileImage,
-                actionType: "view_profile",
-              },
-            }
+            populatedNotification
           );
 
           console.log(

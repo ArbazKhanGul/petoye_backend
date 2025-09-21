@@ -353,24 +353,17 @@ exports.verifyOtp = async (req, res, next) => {
           // Send notification using the io instance
           const io = req.app.get("io");
           if (io && io.notificationService) {
+            // Populate the full notification data for socket
+            const populatedNotification = await Notification.findById(
+              referralNotification._id
+            ).populate(
+              "triggeredBy",
+              "firstName lastName username profileImage"
+            );
+
             await io.notificationService.sendNotification(
               referral.referrer.toString(),
-              {
-                id: referralNotification._id,
-                type: "referral_reward",
-                title: "Referral Reward Earned!",
-                message: `${user.fullName} joined using your referral code. You earned ${rewardAmount} coins!`,
-                data: {
-                  type: "referral_reward",
-                  referralId: referral._id,
-                  coinAmount: rewardAmount,
-                  reason: "referral",
-                  refereeName: user.fullName,
-                  refereeUsername: user.username,
-                  referralCode: referral.referralCode,
-                  actionType: "view_coins",
-                },
-              }
+              populatedNotification
             );
 
             console.log(

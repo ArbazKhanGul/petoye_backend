@@ -87,26 +87,17 @@ exports.addComment = async (req, res, next) => {
         // Send reply notification
         const io = req.app.get("io");
         if (io && io.notificationService) {
+          // Populate the full notification data for socket
+          const populatedNotification = await Notification.findById(
+            replyNotification._id
+          )
+            .populate("triggeredBy", "firstName lastName username profileImage")
+            .populate("relatedData.postId", "content mediaFiles")
+            .populate("relatedData.commentId", "content");
+
           await io.notificationService.sendNotification(
             parentComment.user._id.toString(),
-            {
-              id: replyNotification._id,
-              type: "comment_reply",
-              title: "New Reply",
-              message: `${replier.fullName} replied to your comment`,
-              data: {
-                type: "comment_reply",
-                postId: postId,
-                commentId: parentCommentId,
-                replyId: comment._id,
-                replierName: replier.fullName,
-                replierImage: replier.profileImage,
-                replyContent:
-                  content.substring(0, 100) +
-                  (content.length > 100 ? "..." : ""),
-                actionType: "view_post",
-              },
-            }
+            populatedNotification
           );
         }
 
@@ -144,25 +135,17 @@ exports.addComment = async (req, res, next) => {
         // Send comment notification
         const io = req.app.get("io");
         if (io && io.notificationService) {
+          // Populate the full notification data for socket
+          const populatedNotification = await Notification.findById(
+            commentNotification._id
+          )
+            .populate("triggeredBy", "firstName lastName username profileImage")
+            .populate("relatedData.postId", "content mediaFiles")
+            .populate("relatedData.commentId", "content");
+
           await io.notificationService.sendNotification(
             post.userId.toString(),
-            {
-              id: commentNotification._id,
-              type: "post_comment",
-              title: "New Comment",
-              message: `${commenter.fullName} commented on your post`,
-              data: {
-                type: "post_comment",
-                postId: postId,
-                commentId: comment._id,
-                commenterName: commenter.fullName,
-                commenterImage: commenter.profileImage,
-                commentContent:
-                  content.substring(0, 100) +
-                  (content.length > 100 ? "..." : ""),
-                actionType: "view_post",
-              },
-            }
+            populatedNotification
           );
         }
 

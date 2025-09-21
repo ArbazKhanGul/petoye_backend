@@ -125,23 +125,19 @@ exports.toggleLike = async (req, res, next) => {
             // Send like notification with both socket and push fallback
             const io = req.app.get("io");
             if (io && io.notificationService) {
+              // Populate the full notification data for socket
+              const populatedNotification = await Notification.findById(
+                likeNotification._id
+              )
+                .populate(
+                  "triggeredBy",
+                  "firstName lastName username profileImage"
+                )
+                .populate("relatedData.postId", "content mediaFiles");
+
               await io.notificationService.sendNotification(
                 post.userId.toString(),
-                {
-                  id: likeNotification._id,
-                  type: "post_like",
-                  title: "New Like",
-                  message: `${liker.fullName} liked your post`,
-                  data: {
-                    type: "post_like",
-                    postId: postId,
-                    likerId: userId,
-                    likerName: liker.fullName,
-                    likerImage: liker.profileImage,
-                    likeCount: updatedPost.likesCount,
-                    actionType: "view_post",
-                  },
-                }
+                populatedNotification
               );
             }
 
@@ -205,7 +201,7 @@ exports.toggleLike = async (req, res, next) => {
         message: "Post liked successfully",
         liked: true,
         likesCount: updatedPost.likesCount,
-        tokensEarned: tokensEarned,
+        // tokensEarned: tokensEarned,
       });
     }
   } catch (error) {
