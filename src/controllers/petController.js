@@ -496,21 +496,35 @@ exports.updatePetListing = async (req, res, next) => {
  */
 exports.deletePetListing = async (req, res, next) => {
   try {
+    console.log("Delete request received for pet ID:", req.params.id);
+    console.log("User from auth middleware:", req.user._id);
+
     const petListing = await PetListing.findById(req.params.id);
 
     if (!petListing) {
+      console.log("Pet listing not found for ID:", req.params.id);
       return next(new AppError("Pet listing not found", 404));
     }
 
+    console.log("Pet listing owner:", petListing.owner);
+    console.log("Current user:", req.user._id);
+    console.log(
+      "Owner comparison result:",
+      petListing.owner.toString() === req.user._id
+    );
+
     // Verify ownership
     if (petListing.owner.toString() !== req.user._id) {
+      console.log("Authorization failed - user is not the owner");
       return next(
         new AppError("You are not authorized to delete this listing", 403)
       );
     }
 
+    console.log("Deleting pet listing...");
     await PetListing.findByIdAndDelete(req.params.id);
 
+    console.log("Pet listing deleted successfully");
     res.status(200).json({
       success: true,
       message: "Pet listing deleted successfully",
