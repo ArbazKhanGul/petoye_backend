@@ -109,7 +109,7 @@ class NotificationService {
   /**
    * Send push notification using OneSignal
    * @param {string} userId - Target user ID
-   * @param {object} notification - Notification data
+   * @param {object} notification - Notification data with mandatory fields: notificationId, type, actionType, actionUrl
    */
   async sendPushNotification(userId, notification) {
     try {
@@ -124,51 +124,39 @@ class NotificationService {
         return false;
       }
 
+      // Generate notificationId if not provided
+      const notificationId =
+        notification.notificationId ||
+        notification._id ||
+        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Extract mandatory fields and spread the rest
+      const {
+        title,
+        message,
+        type,
+        actionType,
+        actionUrl,
+        priority,
+        ...otherData
+      } = notification;
+
       // Prepare notification data for OneSignal
       const oneSignalNotification = {
         contents: {
-          en: notification.message || "You have a new notification",
+          en: message || "You have a new notification",
         },
         headings: {
-          en: notification.title || "Petoye",
+          en: title || "Petoye",
         },
         include_external_user_ids: [userId],
         data: {
-          notificationId: notification._id,
-          type: notification.type,
-          actionType: notification.actionType,
-          actionUrl: notification.actionUrl,
-          // Include relevant data for navigation based on notification type
-          ...(notification.relatedData && {
-            postId:
-              notification.relatedData.postId?._id ||
-              notification.relatedData.postId,
-            commentId:
-              notification.relatedData.commentId?._id ||
-              notification.relatedData.commentId,
-            followId:
-              notification.relatedData.followId?._id ||
-              notification.relatedData.followId,
-            // Coin data for coin notifications
-            ...(notification.relatedData.coinData && {
-              coinAmount: notification.relatedData.coinData.amount,
-              coinReason: notification.relatedData.coinData.reason,
-              transactionId: notification.relatedData.coinData.transactionId,
-            }),
-            // Referral data for referral notifications
-            ...(notification.relatedData.referralData && {
-              referralCode: notification.relatedData.referralData.referralCode,
-              newUserId: notification.relatedData.referralData.newUserId,
-              newUserName: notification.relatedData.referralData.newUserName,
-            }),
-            // Additional metadata
-            metadata: notification.relatedData.metadata,
-          }),
-          // Include triggeredBy user info for navigation
-          userId: notification.triggeredBy?._id || notification.triggeredBy,
-          triggeredByUser:
-            notification.triggeredBy?.username ||
-            notification.triggeredBy?.fullName,
+          notificationId,
+          type: type || "general",
+          actionType: actionType || "open_app",
+          actionUrl: actionUrl || "/",
+          // Spread all other data as-is
+          ...otherData,
         },
         // iOS specific settings
         ios_badgeType: "Increase",
@@ -178,7 +166,7 @@ class NotificationService {
         small_icon: "ic_notification",
         large_icon: "ic_launcher",
         // Sound and priority
-        priority: notification.priority === "urgent" ? 10 : 6,
+        priority: priority === "urgent" ? 10 : 6,
         android_channel_id: "petoye_notifications",
       };
 

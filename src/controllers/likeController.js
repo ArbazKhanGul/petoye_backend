@@ -210,29 +210,54 @@ exports.toggleLike = async (req, res, next) => {
 };
 
 /**
- * Get likes for a post
+ * Get likes for a post with pagination
  * @route GET /api/posts/:id/likes
  */
 exports.getPostLikes = async (req, res, next) => {
   try {
     const postId = req.params.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
 
     const post = await Post.findById(postId);
     if (!post) {
       return next(new AppError("Post not found", 404));
     }
 
+    // Get total count for pagination
+    const totalLikes = await Like.countDocuments({ post: postId });
+
+    // Get paginated likes
     const likes = await Like.find({ post: postId })
       .populate({
         path: "user",
-        select: "fullName profileImage",
+        select: "fullName username profileImage",
       })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit);
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalLikes / limit);
+    const hasMore = page < totalPages;
 
     res.status(200).json({
       success: true,
-      count: likes.length,
-      data: likes,
+      likes: likes.map((like) => ({
+        _id: like.user._id,
+        fullName: like.user.fullName,
+        username: like.user.username,
+        profileImage: like.user.profileImage,
+        likedAt: like.createdAt,
+      })),
+      pagination: {
+        page,
+        limit,
+        total: totalLikes,
+        totalPages,
+        hasMore,
+      },
     });
   } catch (error) {
     next(error);

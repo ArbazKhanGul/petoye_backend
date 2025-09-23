@@ -10,6 +10,8 @@ const Comment = require("./comment.model");
 const RewardConfig = require("./rewardConfig.model");
 const Follow = require("./follow.model");
 const Notification = require("./notification.model");
+const Conversation = require("./conversation.model");
+const Message = require("./message.model");
 
 module.exports = {
   User,
@@ -24,4 +26,6 @@ module.exports = {
   RewardConfig,
   Follow,
   Notification,
+  Conversation,
+  Message,
 };

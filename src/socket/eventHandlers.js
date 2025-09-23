@@ -1,4 +1,8 @@
 const connectionManager = require("./connectionManager");
+const Conversation = require("../models/conversation.model");
+const Message = require("../models/message.model");
+const User = require("../models/user.model");
+const NotificationService = require("./notificationService");
 
 /**
  * Socket.IO Event Handlers
@@ -14,6 +18,9 @@ function handleConnection(io, socket) {
   console.log(
     `🔌 New socket connection: ${socket.id} for user: ${socket.userId}`
   );
+
+  // Initialize notification service
+  const notificationService = new NotificationService(io);
 
   // Auto-join user immediately after authentication
   try {
@@ -53,90 +60,253 @@ function handleConnection(io, socket) {
     socket.emit("connection:error", { message: "Failed to auto-join" });
   }
 
-  // Handle sending private messages
-  socket.on("message:send", async (data) => {
+  // Handle sending chat messages
+  socket.on("chat:sendMessage", async (data) => {
     try {
-      const { recipientId, message, messageType = "text", metadata } = data;
+      const {
+        recipientId,
+        content,
+        messageType = "text",
+        mediaUrl,
+        mediaType,
+      } = data;
+
+      console.log(`💬 Chat message from ${socket.userId} to ${recipientId}:`, {
+        content: content?.substring(0, 50) + "...",
+        messageType,
+      });
 
       // Validate input
-      if (!recipientId || !message) {
-        return socket.emit("message:error", {
-          message: "Recipient ID and message are required",
+      if (!recipientId || !content || content.trim().length === 0) {
+        return socket.emit("chat:error", {
+          message: "Recipient ID and message content are required",
         });
       }
 
-      // Create message object
-      const messageData = {
-        id: generateMessageId(),
-        senderId: socket.userId,
-        recipientId,
-        message,
-        messageType,
-        metadata,
-        timestamp: new Date().toISOString(),
-        status: "sent",
-      };
+      if (content.length > 2000) {
+        return socket.emit("chat:error", {
+          message: "Message content too long (max 2000 characters)",
+        });
+      }
 
-      // Send to recipient if online
-      const sent = connectionManager.sendToUser(
-        io,
-        recipientId,
-        "message:received",
-        messageData
-      );
+      // Check if recipient exists
+      const recipient = await User.findById(recipientId);
+      if (!recipient) {
+        return socket.emit("chat:error", {
+          message: "Recipient not found",
+        });
+      }
 
-      // Send confirmation to sender
-      socket.emit("message:sent", {
-        ...messageData,
-        delivered: sent,
+      // Find or create conversation between these two users
+      let conversation = await Conversation.findOne({
+        participants: { $all: [socket.userId, recipientId], $size: 2 },
       });
 
-      // Here you would typically save the message to database
-      // await saveMessageToDatabase(messageData);
+      if (!conversation) {
+        // Create new conversation
+        conversation = new Conversation({
+          participants: [socket.userId, recipientId],
+          unreadCount: new Map([
+            [socket.userId.toString(), 0],
+            [recipientId.toString(), 0],
+          ]),
+        });
+        await conversation.save();
+        console.log(`✅ New conversation created: ${conversation._id}`);
+      }
 
-      // If recipient is offline, you might want to send push notification
-      if (!sent) {
-        // await sendPushNotification(recipientId, messageData);
-        console.log(`📱 Should send push notification to ${recipientId}`);
+      // Create and save the message
+      const message = new Message({
+        conversation: conversation._id,
+        sender: socket.userId,
+        content: content.trim(),
+        messageType,
+        mediaUrl,
+        mediaType,
+        status: "sent",
+      });
+
+      await message.save();
+
+      // Update conversation
+      conversation.lastMessage = message._id;
+      conversation.lastMessageAt = new Date();
+
+      // Increment unread count for recipient
+      const currentUnread =
+        conversation.unreadCount.get(recipientId.toString()) || 0;
+      conversation.unreadCount.set(recipientId.toString(), currentUnread + 1);
+
+      await conversation.save();
+
+      // Use socket user data instead of populating from database
+      const messageToUser = {
+        _id: message._id,
+        conversation: conversation._id,
+        sender: {
+          _id: socket.userId,
+          fullName: socket.userFullName,
+          username: socket.userName,
+          profileImage: socket.userProfileImage,
+        },
+        content: message.content,
+        messageType: message.messageType,
+        mediaUrl: message.mediaUrl,
+        mediaType: message.mediaType,
+        status: message.status,
+        isRead: message.isRead,
+        createdAt: message.createdAt,
+      };
+
+      // Check if recipient is online and send real-time message
+      const isRecipientOnline = connectionManager.isUserOnline(recipientId);
+      let delivered = false;
+
+      if (isRecipientOnline) {
+        // Send to recipient in real-time
+        delivered = connectionManager.sendToUser(
+          io,
+          recipientId,
+          "chat:messageReceived",
+          {
+            message: messageToUser,
+          }
+        );
+      }
+
+      // Send confirmation to sender
+      socket.emit("chat:messageSent", {
+        success: true,
+        messageId: message._id,
+      });
+
+      console.log(
+        `✅ Message saved and ${
+          delivered ? "delivered" : "queued"
+        } for ${recipientId}`
+      );
+
+      // If recipient is offline, send push notification
+      if (!isRecipientOnline) {
+        console.log(`📱 Sending push notification to ${recipientId}`);
+
+        try {
+          const pushResult = await notificationService.sendPushNotification(
+            recipientId,
+            {
+              notificationId: `chat_${Date.now()}_${Math.random()
+                .toString(36)
+                .substr(2, 9)}`,
+              title: `New message from ${
+                socket.userFullName || socket.userName
+              }`,
+              message:
+                messageType === "text" ? content : "Sent you a media message",
+              type: "chat_message",
+              actionType: "open_chat",
+              actionUrl: `/chat/${conversation._id}`,
+              // All other data is passed as-is
+              conversationId: conversation._id,
+              senderId: socket.userId,
+              senderName: socket.userFullName || socket.userName,
+              senderProfileImage: socket.userProfileImage,
+              messageType: messageType,
+              messagePreview:
+                messageType === "text"
+                  ? content.substring(0, 100)
+                  : "Media message",
+            }
+          );
+        } catch (error) {
+          console.error(
+            `❌ Error sending push notification to ${recipientId}:`,
+            error
+          );
+        }
       }
     } catch (error) {
-      console.error("Error sending message:", error);
-      socket.emit("message:error", { message: "Failed to send message" });
+      console.error("Error sending chat message:", error);
+      socket.emit("chat:error", {
+        message: "Failed to send message",
+        error: error.message,
+      });
     }
   });
 
-  // Handle message read receipts
-  socket.on("message:read", (data) => {
-    const { messageId, senderId } = data;
-    connectionManager.sendToUser(io, senderId, "message:read", {
-      messageId,
-      readBy: socket.userId,
-      timestamp: new Date().toISOString(),
-    });
-  });
+  // Handle message seen (when user views messages)
+  socket.on("chat:seen", async (data) => {
+    try {
+      const { conversationId } = data;
 
-  // Handle group/room operations
-  socket.on("room:join", (roomId) => {
-    socket.join(roomId);
-    socket.emit("room:joined", { roomId });
-    console.log(`👥 User ${socket.userId} joined room: ${roomId}`);
-  });
+      console.log(
+        `👀 User ${socket.userId} viewed messages in conversation: ${conversationId}`
+      );
 
-  socket.on("room:leave", (roomId) => {
-    socket.leave(roomId);
-    socket.emit("room:left", { roomId });
-    console.log(`👥 User ${socket.userId} left room: ${roomId}`);
-  });
+      // Verify user is participant
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        return socket.emit("chat:error", { message: "Conversation not found" });
+      }
 
-  // Handle notifications
-  socket.on("notification:send", (data) => {
-    const { userId, notification } = data;
-    connectionManager.sendToUser(
-      io,
-      userId,
-      "notification:received",
-      notification
-    );
+      const isParticipant = conversation.participants.some(
+        (participant) => participant.toString() === socket.userId.toString()
+      );
+
+      if (!isParticipant) {
+        return socket.emit("chat:error", {
+          message: "You are not a participant in this conversation",
+        });
+      }
+
+      // Reset unread count for current user
+      conversation.unreadCount.set(socket.userId.toString(), 0);
+      await conversation.save();
+
+      // Mark all unread messages from other participants as read
+      const result = await Message.updateMany(
+        {
+          conversation: conversationId,
+          sender: { $ne: socket.userId },
+          isRead: false,
+        },
+        {
+          $set: {
+            isRead: true,
+            readAt: new Date(),
+            status: "read",
+          },
+        }
+      );
+
+      // Send confirmation to user
+      socket.emit("chat:seenConfirm", {
+        conversationId,
+        success: true,
+      });
+
+      // Notify other participants about read receipt
+      conversation.participants.forEach((participantId) => {
+        if (participantId.toString() !== socket.userId.toString()) {
+          connectionManager.sendToUser(
+            io,
+            participantId.toString(),
+            "chat:messagesRead",
+            {
+              conversationId,
+              readBy: socket.userId,
+              readAt: new Date().toDateString(),
+            }
+          );
+        }
+      });
+
+      console.log(
+        `✅ User ${socket.userId} marked ${result.modifiedCount} messages as read in ${conversationId}`
+      );
+    } catch (error) {
+      console.error("Error handling seen messages:", error);
+      socket.emit("chat:error", { message: "Failed to mark messages as seen" });
+    }
   });
 
   // Handle user disconnect
@@ -151,35 +321,6 @@ function handleConnection(io, socket) {
     //   notifyFriendsOnlineStatus(socket.userId, false);
     // }
   });
-
-  // Handle custom events for your app
-  socket.on("post:like", (data) => {
-    const { postId, postOwnerId } = data;
-    connectionManager.sendToUser(io, postOwnerId, "notification:received", {
-      type: "post_like",
-      message: "Someone liked your post!",
-      data: { postId, likerId: socket.userId },
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  socket.on("follow:request", (data) => {
-    const { targetUserId } = data;
-    connectionManager.sendToUser(io, targetUserId, "notification:received", {
-      type: "follow_request",
-      message: "You have a new follow request!",
-      data: { followerId: socket.userId },
-      timestamp: new Date().toISOString(),
-    });
-  });
-}
-
-/**
- * Generate unique message ID
- * @returns {string} Unique message ID
- */
-function generateMessageId() {
-  return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 module.exports = {

@@ -37,7 +37,7 @@ router.post("/:id/like", likeController.toggleLike);
  * @swagger
  * /api/posts/{id}/likes:
  *   get:
- *     summary: Get all likes for a post
+ *     summary: Get all likes for a post with pagination
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -48,9 +48,57 @@ router.post("/:id/like", likeController.toggleLike);
  *         schema:
  *           type: string
  *         description: Post ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of likes per page
  *     responses:
  *       200:
  *         description: Likes retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 likes:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       fullName:
+ *                         type: string
+ *                       username:
+ *                         type: string
+ *                       profileImage:
+ *                         type: string
+ *                       likedAt:
+ *                         type: string
+ *                         format: date-time
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *                     hasMore:
+ *                       type: boolean
  *       404:
  *         description: Post not found
  */
