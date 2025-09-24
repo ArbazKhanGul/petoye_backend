@@ -30,7 +30,7 @@ var storage = multer.diskStorage({
       cb(null, postsDir);
     } else if (req.baseUrl === "/api/pets") {
       cb(null, petListingDir);
-    } else if (req.baseUrl === "/api/chat") {
+    } else if (req.baseUrl === "/api/chat-media") {
       cb(null, chatDir);
     } else if (req.baseUrl === "/api/profile" || req.baseUrl === "/api/auth") {
       // Profile images go to profile directory

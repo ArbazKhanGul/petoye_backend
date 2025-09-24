@@ -58,6 +58,7 @@ app.use("/api/follow", require("./routes/followRoute"));
 app.use("/api/coins", require("./routes/coinRoute"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/chat", require("./routes/chatRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
