@@ -69,7 +69,13 @@ function handleConnection(io, socket) {
         messageType = "text",
         mediaUrl,
         mediaType,
+        tempId,
       } = data;
+
+      console.log(
+        "🚀 ~ handleConnection ~ socket.userId:-----------------------------",
+        socket.userId
+      );
 
       console.log(`💬 Chat message from ${socket.userId} to ${recipientId}:`, {
         content: content?.substring(0, 50) + "...",
@@ -123,6 +129,7 @@ function handleConnection(io, socket) {
         messageType,
         mediaUrl,
         mediaType,
+        receiver: recipientId,
         status: "sent",
       });
 
@@ -160,18 +167,12 @@ function handleConnection(io, socket) {
 
       // Check if recipient is online and send real-time message
       const isRecipientOnline = connectionManager.isUserOnline(recipientId);
-      let delivered = false;
 
       if (isRecipientOnline) {
         // Send to recipient in real-time
-        delivered = connectionManager.sendToUser(
-          io,
-          recipientId,
-          "chat:messageReceived",
-          {
-            message: messageToUser,
-          }
-        );
+        connectionManager.sendToUser(io, recipientId, "chat:messageReceived", {
+          message: messageToUser,
+        });
       }
 
       // Send confirmation to sender
@@ -179,14 +180,8 @@ function handleConnection(io, socket) {
         success: true,
         messageId: message._id,
         conversationId: conversation._id,
-        delivered,
+        tempId,
       });
-
-      console.log(
-        `✅ Message saved and ${
-          delivered ? "delivered" : "queued"
-        } for ${recipientId}`
-      );
 
       // If recipient is offline, send push notification
       if (!isRecipientOnline) {
