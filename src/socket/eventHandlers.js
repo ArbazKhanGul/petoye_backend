@@ -275,11 +275,11 @@ function handleConnection(io, socket) {
         }
       );
 
-      // Send confirmation to user
-      socket.emit("chat:seenConfirm", {
-        conversationId,
-        success: true,
-      });
+      // // Send confirmation to user
+      // socket.emit("chat:seenConfirm", {
+      //   conversationId,
+      //   success: true,
+      // });
 
       // Notify other participants about read receipt
       conversation.participants.forEach((participantId) => {
