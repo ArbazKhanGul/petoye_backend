@@ -1,6 +1,6 @@
 const Conversation = require("../models/conversation.model");
 const Message = require("../models/message.model");
-// const User = require("../models/user.model");
+const User = require("../models/user.model");
 const AppError = require("../errors/appError");
 const connectionManager = require("../socket/connectionManager");
 
@@ -12,15 +12,18 @@ const connectionManager = require("../socket/connectionManager");
 const getConversations = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, search } = req.query;
 
     const skip = (page - 1) * limit;
 
-    // Find conversations where user is a participant and hasn't deleted
-    const conversations = await Conversation.find({
+    // Build base query
+    let query = {
       participants: userId,
       deletedBy: { $ne: userId },
-    })
+    };
+
+    // Find conversations where user is a participant and hasn't deleted
+    let conversationQuery = Conversation.find(query)
       .populate("participants", "fullName username profileImage email")
       .populate({
         path: "lastMessage",
@@ -28,7 +31,71 @@ const getConversations = async (req, res, next) => {
           path: "sender",
           select: "fullName username profileImage",
         },
-      })
+      });
+
+    // If search query is provided, filter conversations
+    if (search && search.trim().length > 0) {
+      const searchRegex = new RegExp(search.trim(), "i");
+
+      // First find conversations, then filter by participant names or last message
+      const allConversations = await conversationQuery
+        .sort({ lastMessageAt: -1 })
+        .lean();
+
+      const filteredConversations = allConversations.filter((conversation) => {
+        // Check if any participant's name matches the search
+        const participantMatches = conversation.participants.some(
+          (participant) =>
+            participant._id.toString() !== userId.toString() &&
+            (searchRegex.test(participant.fullName || "") ||
+              searchRegex.test(participant.username || ""))
+        );
+
+        // Check if last message content matches the search
+        const messageMatches =
+          conversation.lastMessage &&
+          conversation.lastMessage.content &&
+          searchRegex.test(conversation.lastMessage.content);
+
+        return participantMatches || messageMatches;
+      });
+
+      // Apply pagination to filtered results
+      const paginatedConversations = filteredConversations.slice(
+        skip,
+        skip + parseInt(limit)
+      );
+
+      // Add other participant info for each conversation
+      const conversationsWithDetails = paginatedConversations.map(
+        (conversation) => {
+          const otherParticipant = conversation.participants.find(
+            (participant) => participant._id.toString() !== userId.toString()
+          );
+          conversation.otherParticipant = otherParticipant;
+          conversation.unreadCount =
+            conversation.unreadCount?.[userId.toString()] || 0;
+          return conversation;
+        }
+      );
+
+      return res.json({
+        success: true,
+        data: {
+          conversations: conversationsWithDetails,
+          pagination: {
+            currentPage: parseInt(page),
+            totalPages: Math.ceil(filteredConversations.length / limit),
+            totalConversations: filteredConversations.length,
+            hasNext: skip + parseInt(limit) < filteredConversations.length,
+            hasPrev: parseInt(page) > 1,
+          },
+        },
+      });
+    }
+
+    // No search - regular pagination
+    const conversations = await conversationQuery
       .sort({ lastMessageAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -51,22 +118,18 @@ const getConversations = async (req, res, next) => {
     });
 
     // Get total count for pagination
-    const total = await Conversation.countDocuments({
-      participants: userId,
-      deletedBy: { $ne: userId },
-    });
+    const total = await Conversation.countDocuments(query);
 
     res.json({
       success: true,
       data: {
         conversations: conversationsWithDetails,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit),
-          hasNext: page < Math.ceil(total / limit),
-          hasPrev: page > 1,
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalConversations: total,
+          hasNext: parseInt(page) < Math.ceil(total / limit),
+          hasPrev: parseInt(page) > 1,
         },
       },
     });
@@ -265,9 +328,110 @@ const deleteConversation = async (req, res, next) => {
   }
 };
 
+/**
+ * Get conversation between current user and another user (don't create if none exists)
+ * @route POST /api/chat/conversations/get-with-user
+ * @access Private
+ */
+const getConversationWithUser = async (req, res, next) => {
+  try {
+    const currentUserId = req.user._id;
+    const { otherUserId } = req.body;
+
+    // Validate input
+    if (!otherUserId) {
+      return next(new AppError("Other user ID is required", 400));
+    }
+
+    // Prevent getting conversation with self
+    if (currentUserId.toString() === otherUserId.toString()) {
+      return next(new AppError("Cannot get conversation with yourself", 400));
+    }
+
+    // Check if other user exists
+    const otherUser = await User.findById(otherUserId).select(
+      "fullName username profileImage email"
+    );
+    if (!otherUser) {
+      return next(new AppError("User not found", 404));
+    }
+
+    // Check if conversation exists between these two users
+    const conversation = await Conversation.findOne({
+      participants: { $all: [currentUserId, otherUserId], $size: 2 },
+    })
+      .populate("participants", "fullName username profileImage email")
+      .populate({
+        path: "lastMessage",
+        populate: {
+          path: "sender",
+          select: "fullName username profileImage",
+        },
+      });
+
+    // If no conversation exists, return null conversation but include other user details
+    if (!conversation) {
+      return res.status(200).json({
+        success: true,
+        message: "No existing conversation found",
+        data: {
+          conversation: null,
+          otherUser: {
+            _id: otherUser._id,
+            fullName: otherUser.fullName,
+            username: otherUser.username,
+            profileImage: otherUser.profileImage,
+            email: otherUser.email,
+          },
+        },
+      });
+    }
+
+    // Get the other participant (not the current user)
+    const otherParticipant = conversation.participants.find(
+      (participant) => participant._id.toString() !== currentUserId.toString()
+    );
+
+    // Get unread count for current user
+    const unreadCount =
+      conversation.unreadCount.get(currentUserId.toString()) || 0;
+
+    // Format response for existing conversation
+    const conversationData = {
+      _id: conversation._id,
+      participants: conversation.participants,
+      lastMessage: conversation.lastMessage,
+      lastMessageAt: conversation.lastMessageAt,
+      unreadCount,
+      otherParticipant,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Conversation retrieved successfully",
+      data: {
+        conversation: conversationData,
+        otherUser: {
+          _id: otherUser._id,
+          fullName: otherUser.fullName,
+          username: otherUser.username,
+          profileImage: otherUser.profileImage,
+          email: otherUser.email,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error getting conversation:", error);
+    next(new AppError(error.message, 500));
+  }
+};
+
 module.exports = {
   getConversations,
   getMessages,
   markMessagesAsRead,
   deleteConversation,
+  getConversationWithUser,
 };

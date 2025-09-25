@@ -5,6 +5,7 @@ const {
   getMessages,
   markMessagesAsRead,
   deleteConversation,
+  getConversationWithUser,
 } = require("../controllers/chatController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -279,5 +280,53 @@ router.put("/conversations/:conversationId/read", markMessagesAsRead);
  *         description: Conversation not found
  */
 router.delete("/conversations/:conversationId", deleteConversation);
+
+/**
+ * @swagger
+ * /api/chat/conversations/get-with-user:
+ *   post:
+ *     summary: Get existing conversation with another user (don't create if none exists)
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               otherUserId:
+ *                 type: string
+ *                 description: ID of the other user to get conversation with
+ *             required:
+ *               - otherUserId
+ *     responses:
+ *       200:
+ *         description: Conversation retrieved or null if none exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     conversation:
+ *                       oneOf:
+ *                         - $ref: '#/components/schemas/Conversation'
+ *                         - type: "null"
+ *                     otherUser:
+ *                       $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Invalid input or trying to get conversation with yourself
+ *       404:
+ *         description: Other user not found
+ */
+router.post("/conversations/get-with-user", getConversationWithUser);
 
 module.exports = router;

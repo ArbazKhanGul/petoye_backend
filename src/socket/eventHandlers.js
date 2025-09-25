@@ -178,6 +178,8 @@ function handleConnection(io, socket) {
       socket.emit("chat:messageSent", {
         success: true,
         messageId: message._id,
+        conversationId: conversation._id,
+        delivered,
       });
 
       console.log(
