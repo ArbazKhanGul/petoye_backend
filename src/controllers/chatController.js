@@ -75,6 +75,18 @@ const getConversations = async (req, res, next) => {
           conversation.otherParticipant = otherParticipant;
           conversation.unreadCount =
             conversation.unreadCount?.[userId.toString()] || 0;
+
+          // Filter out lastMessage if it has been deleted by this user
+          if (
+            conversation.lastMessage &&
+            conversation.lastMessage.deletedBy &&
+            conversation.lastMessage.deletedBy.some(
+              (deletedUserId) => deletedUserId.toString() === userId.toString()
+            )
+          ) {
+            conversation.lastMessage = null;
+          }
+
           return conversation;
         }
       );
@@ -113,6 +125,17 @@ const getConversations = async (req, res, next) => {
       // Get unread count for current user
       conversationObj.unreadCount =
         conversation.unreadCount.get(userId.toString()) || 0;
+
+      // Filter out lastMessage if it has been deleted by this user
+      if (
+        conversationObj.lastMessage &&
+        conversationObj.lastMessage.deletedBy &&
+        conversationObj.lastMessage.deletedBy.some(
+          (deletedUserId) => deletedUserId.toString() === userId.toString()
+        )
+      ) {
+        conversationObj.lastMessage = null;
+      }
 
       return conversationObj;
     });
@@ -172,7 +195,10 @@ const getMessages = async (req, res, next) => {
     }
 
     // 2) Build query: if cursor provided, get strictly older messages
-    const query = { conversation: conversationId };
+    const query = {
+      conversation: conversationId,
+      deletedBy: { $ne: userId }, // Exclude messages deleted by this user
+    };
     if (lastMessageId) {
       query._id = { $lt: lastMessageId }; // fetch older than the cursor
     }
@@ -319,9 +345,20 @@ const deleteConversation = async (req, res, next) => {
       await conversation.save();
     }
 
+    // Also soft delete all messages in this conversation for this user
+    await Message.updateMany(
+      {
+        conversation: conversationId,
+        deletedBy: { $ne: userId }, // Only update messages not already deleted by this user
+      },
+      {
+        $addToSet: { deletedBy: userId }, // Add user to deletedBy array
+      }
+    );
+
     res.json({
       success: true,
-      message: "Conversation deleted successfully",
+      message: "Conversation and messages deleted successfully",
     });
   } catch (error) {
     next(new AppError(error.message, 500));

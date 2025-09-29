@@ -21,12 +21,13 @@ exports.uploadChatMedia = async (req, res, next) => {
     const mediaType = getMediaType(file.mimetype);
 
     // Create file URL
-    const fileUrl = `/chat/${file.filename}`;
+    const fileUrl = `/images/chat/${file.filename}`;
 
     // Save file information to database
     const chatFile = new ChatFile({
       filename: file.filename,
       originalName: file.originalname,
+      path: file.path, // Full file system path
       url: fileUrl,
       size: file.size,
       mimeType: file.mimetype,
@@ -47,6 +48,7 @@ exports.uploadChatMedia = async (req, res, next) => {
         file: {
           filename: chatFile.filename,
           originalName: chatFile.originalName,
+          path: chatFile.path,
           url: chatFile.url,
           size: chatFile.size,
           mimeType: chatFile.mimeType,

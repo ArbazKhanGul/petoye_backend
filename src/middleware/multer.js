@@ -26,11 +26,12 @@ if (!fs.existsSync(chatDir)) {
 var storage = multer.diskStorage({
   destination: function (req, file, cb) {
     // Use different directories for different types of uploads
+    console.log("🚀 ~ req.baseUrl:", req.baseUrl);
     if (req.baseUrl === "/api/posts") {
       cb(null, postsDir);
     } else if (req.baseUrl === "/api/pets") {
       cb(null, petListingDir);
-    } else if (req.baseUrl === "/api/chat-media") {
+    } else if (req.baseUrl === "/api/upload") {
       cb(null, chatDir);
     } else if (req.baseUrl === "/api/profile" || req.baseUrl === "/api/auth") {
       // Profile images go to profile directory

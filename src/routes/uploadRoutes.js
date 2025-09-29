@@ -1,8 +1,11 @@
 const express = require("express");
 const upload = require("../middleware/multer");
 const { uploadChatMedia } = require("../controllers/uploadController");
+const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
+
+router.use(authMiddleware);
 
 /**
  * @swagger

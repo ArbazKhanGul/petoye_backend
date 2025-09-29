@@ -125,19 +125,33 @@ exports.toggleLike = async (req, res, next) => {
             // Send like notification with both socket and push fallback
             const io = req.app.get("io");
             if (io && io.notificationService) {
-              // Populate the full notification data for socket
-              const populatedNotification = await Notification.findById(
-                likeNotification._id
-              )
-                .populate(
-                  "triggeredBy",
-                  "firstName lastName username profileImage"
-                )
-                .populate("relatedData.postId", "content mediaFiles");
+              // Send only relevant notification data for frontend
+              const notificationData = {
+                id: likeNotification._id.toString(),
+                type: "post_like",
+                title: "New Like",
+                message: `${liker.fullName} liked your post`,
+                triggeredBy: {
+                  _id: liker._id,
+                  fullName: liker.fullName,
+                  username: liker.username,
+                  profileImage: liker.profileImage,
+                },
+                relatedData: {
+                  postId: {
+                    _id: postId,
+                  },
+                  likeCount: updatedPost.likesCount,
+                },
+                actionType: "view_post",
+                actionUrl: `/posts/${postId}`,
+                priority: "medium",
+                timestamp: new Date().toISOString(),
+              };
 
               await io.notificationService.sendNotification(
                 post.userId.toString(),
-                populatedNotification
+                notificationData
               );
             }
 
@@ -146,7 +160,7 @@ exports.toggleLike = async (req, res, next) => {
             );
 
             // 2. Create and send COIN notification
-            const coinNotification = await Notification.create({
+            await Notification.create({
               userId: post.userId,
               type: "coin_earned_like",
               title: "Coins Earned!",
@@ -166,31 +180,6 @@ exports.toggleLike = async (req, res, next) => {
               actionType: "view_coins",
               priority: "low",
             });
-
-            // Send coin notification ONLY if user is online
-            if (io && io.notificationService) {
-              await io.notificationService.sendSocketOnlyNotification(
-                post.userId.toString(),
-                {
-                  id: coinNotification._id,
-                  type: "coin_earned_like",
-                  title: "Coins Earned!",
-                  message: `You earned ${tokensEarned} coins from getting a like`,
-                  data: {
-                    type: "coin_earned_like",
-                    postId: postId,
-                    coinAmount: tokensEarned,
-                    reason: "like",
-                    fromLiker: liker.fullName,
-                    actionType: "view_coins",
-                  },
-                }
-              );
-            }
-
-            console.log(
-              `🪙 Coin notification processed for user ${post.userId} (+${tokensEarned} coins)`
-            );
           }
         }
       }

@@ -330,7 +330,7 @@ exports.verifyOtp = async (req, res, next) => {
           // Create referral reward notification
           const referralNotification = await Notification.create({
             userId: referral.referrer,
-            type: "referral_reward",
+            type: "coin_earned_referral",
             title: "Referral Reward Earned!",
             message: `${user.fullName} joined using your referral code. You earned ${rewardAmount} coins!`,
             triggeredBy: user._id,
@@ -353,17 +353,35 @@ exports.verifyOtp = async (req, res, next) => {
           // Send notification using the io instance
           const io = req.app.get("io");
           if (io && io.notificationService) {
-            // Populate the full notification data for socket
-            const populatedNotification = await Notification.findById(
-              referralNotification._id
-            ).populate(
-              "triggeredBy",
-              "firstName lastName username profileImage"
-            );
+            // Send only relevant notification data for frontend
+            const notificationData = {
+              id: referralNotification._id.toString(),
+              type: "coin_earned_referral",
+              title: "Referral Reward Earned!",
+              message: `${user.fullName} joined using your referral code. You earned ${rewardAmount} coins!`,
+              triggeredBy: {
+                _id: user._id,
+                fullName: user.fullName,
+                username: user.username,
+                profileImage: user.profileImage,
+              },
+              relatedData: {
+                referralId: referral._id,
+                coinData: {
+                  amount: rewardAmount,
+                  reason: "referral",
+                },
+                refereeName: user.fullName,
+              },
+              actionType: "view_coins",
+              actionUrl: "/wallet",
+              priority: "medium",
+              timestamp: new Date().toISOString(),
+            };
 
             await io.notificationService.sendNotification(
               referral.referrer.toString(),
-              populatedNotification
+              notificationData
             );
 
             console.log(

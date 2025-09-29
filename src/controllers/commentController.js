@@ -87,17 +87,34 @@ exports.addComment = async (req, res, next) => {
         // Send reply notification
         const io = req.app.get("io");
         if (io && io.notificationService) {
-          // Populate the full notification data for socket
-          const populatedNotification = await Notification.findById(
-            replyNotification._id
-          )
-            .populate("triggeredBy", "firstName lastName username profileImage")
-            .populate("relatedData.postId", "content mediaFiles")
-            .populate("relatedData.commentId", "content");
+          // Send only relevant notification data for frontend
+          const notificationData = {
+            id: replyNotification._id.toString(),
+            type: "comment_reply",
+            title: "New Reply",
+            message: `${replier.fullName} replied to your comment`,
+            triggeredBy: {
+              _id: replier._id,
+              fullName: replier.fullName,
+              username: replier.username,
+              profileImage: replier.profileImage,
+            },
+            relatedData: {
+              postId: {
+                _id: postId,
+              },
+              commentId: parentCommentId,
+              replyId: comment._id,
+            },
+            actionType: "view_post",
+            actionUrl: `/posts/${postId}`,
+            priority: "medium",
+            timestamp: new Date().toISOString(),
+          };
 
           await io.notificationService.sendNotification(
             parentComment.user._id.toString(),
-            populatedNotification
+            notificationData
           );
         }
 
@@ -135,17 +152,33 @@ exports.addComment = async (req, res, next) => {
         // Send comment notification
         const io = req.app.get("io");
         if (io && io.notificationService) {
-          // Populate the full notification data for socket
-          const populatedNotification = await Notification.findById(
-            commentNotification._id
-          )
-            .populate("triggeredBy", "firstName lastName username profileImage")
-            .populate("relatedData.postId", "content mediaFiles")
-            .populate("relatedData.commentId", "content");
+          // Send only relevant notification data for frontend
+          const notificationData = {
+            id: commentNotification._id.toString(),
+            type: "post_comment",
+            title: "New Comment",
+            message: `${commenter.fullName} commented on your post`,
+            triggeredBy: {
+              _id: commenter._id,
+              fullName: commenter.fullName,
+              username: commenter.username,
+              profileImage: commenter.profileImage,
+            },
+            relatedData: {
+              postId: {
+                _id: postId,
+              },
+              commentId: comment._id,
+            },
+            actionType: "view_post",
+            actionUrl: `/posts/${postId}`,
+            priority: "medium",
+            timestamp: new Date().toISOString(),
+          };
 
           await io.notificationService.sendNotification(
             post.userId.toString(),
-            populatedNotification
+            notificationData
           );
         }
 

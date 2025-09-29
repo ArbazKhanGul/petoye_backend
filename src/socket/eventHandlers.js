@@ -82,10 +82,35 @@ function handleConnection(io, socket) {
         messageType,
       });
 
+      // Helper function to map MIME type to enum value
+      const getMediaTypeEnum = (mimeType) => {
+        if (!mimeType) return null;
+        if (mimeType.startsWith("image/")) return "image";
+        if (mimeType.startsWith("video/")) return "video";
+        if (mimeType.startsWith("audio/")) return "audio";
+        return "file";
+      };
+
+      // Convert MIME type to enum value
+      const mediaTypeEnum = getMediaTypeEnum(mediaType);
+
       // Validate input
-      if (!recipientId || !content || content.trim().length === 0) {
+      if (!recipientId) {
         return socket.emit("chat:error", {
-          message: "Recipient ID and message content are required",
+          message: "Recipient ID is required",
+        });
+      }
+
+      // For text messages, content is required. For media messages, mediaUrl is required.
+      if (messageType === "text" && (!content || content.trim().length === 0)) {
+        return socket.emit("chat:error", {
+          message: "Message content is required for text messages",
+        });
+      }
+
+      if (messageType === "media" && !mediaUrl) {
+        return socket.emit("chat:error", {
+          message: "Media URL is required for media messages",
         });
       }
 
@@ -119,16 +144,41 @@ function handleConnection(io, socket) {
         });
         await conversation.save();
         console.log(`✅ New conversation created: ${conversation._id}`);
+      } else {
+        // If conversation exists, check if it was soft-deleted by either participant
+        // If so, restore it for them (remove from deletedBy array)
+        let conversationUpdated = false;
+
+        if (conversation.deletedBy.includes(socket.userId)) {
+          conversation.deletedBy = conversation.deletedBy.filter(
+            (userId) => userId.toString() !== socket.userId.toString()
+          );
+          conversationUpdated = true;
+        }
+
+        if (conversation.deletedBy.includes(recipientId)) {
+          conversation.deletedBy = conversation.deletedBy.filter(
+            (userId) => userId.toString() !== recipientId.toString()
+          );
+          conversationUpdated = true;
+        }
+
+        if (conversationUpdated) {
+          await conversation.save();
+          console.log(
+            `✅ Conversation restored for participants: ${conversation._id}`
+          );
+        }
       }
 
       // Create and save the message
       const message = new Message({
         conversation: conversation._id,
         sender: socket.userId,
-        content: content.trim(),
+        content: content ? content.trim() : "", // Allow empty content for media messages
         messageType,
         mediaUrl,
-        mediaType,
+        mediaType: mediaTypeEnum, // Use the converted enum value
         receiver: recipientId,
         status: "sent",
       });

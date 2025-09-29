@@ -77,7 +77,7 @@ exports.followUser = async (req, res, next) => {
         // Create follow notification
         const followNotification = await Notification.create({
           userId: targetUserId,
-          type: "user_follow",
+          type: "new_follower",
           title: "New Follower",
           message: `${follower.fullName} started following you`,
           triggeredBy: currentUserId,
@@ -95,14 +95,30 @@ exports.followUser = async (req, res, next) => {
         // Send notification using the io instance
         const io = req.app.get("io");
         if (io && io.notificationService) {
-          // Populate the full notification data for socket
-          const populatedNotification = await Notification.findById(
-            followNotification._id
-          ).populate("triggeredBy", "firstName lastName username profileImage");
+          // Send only relevant notification data for frontend
+          const notificationData = {
+            id: followNotification._id.toString(),
+            type: "new_follower",
+            title: "New Follower",
+            message: `${follower.fullName} started following you`,
+            triggeredBy: {
+              _id: follower._id,
+              fullName: follower.fullName,
+              username: follower.username,
+              profileImage: follower.profileImage,
+            },
+            relatedData: {
+              followerId: currentUserId,
+            },
+            actionType: "view_profile",
+            actionUrl: `/profile/${follower.username}`,
+            priority: "medium",
+            timestamp: new Date().toISOString(),
+          };
 
           await io.notificationService.sendNotification(
             targetUserId.toString(),
-            populatedNotification
+            notificationData
           );
 
           console.log(
@@ -182,65 +198,6 @@ exports.unfollowUser = async (req, res, next) => {
     );
 
     await session.commitTransaction();
-
-    // === UNFOLLOW NOTIFICATION ===
-    // Send notification to the user being unfollowed (optional - some apps don't do this)
-    try {
-      // Get unfollower details for notification
-      const unfollower = await User.findById(
-        currentUserId,
-        "fullName username profileImage"
-      );
-
-      if (unfollower) {
-        // Create unfollow notification (low priority as it's less important)
-        const unfollowNotification = await Notification.create({
-          userId: targetUserId,
-          type: "user_unfollow",
-          title: "User Unfollowed",
-          message: `${unfollower.fullName} unfollowed you`,
-          triggeredBy: currentUserId,
-          relatedData: {
-            unfollowerId: currentUserId,
-            metadata: {
-              unfollowerName: unfollower.fullName,
-              unfollowerUsername: unfollower.username,
-            },
-          },
-          actionType: "view_profile",
-          priority: "low",
-        });
-
-        // Send notification using the io instance (socket only - don't push for unfollows)
-        const io = req.app.get("io");
-        if (io && io.notificationService) {
-          await io.notificationService.sendSocketOnlyNotification(
-            targetUserId.toString(),
-            {
-              id: unfollowNotification._id,
-              type: "user_unfollow",
-              title: "User Unfollowed",
-              message: `${unfollower.fullName} unfollowed you`,
-              data: {
-                type: "user_unfollow",
-                unfollowerId: currentUserId,
-                unfollowerName: unfollower.fullName,
-                unfollowerUsername: unfollower.username,
-                unfollowerImage: unfollower.profileImage,
-                actionType: "view_profile",
-              },
-            }
-          );
-
-          console.log(
-            `👥➖ Unfollow notification sent to ${targetUserId} from ${unfollower.fullName}`
-          );
-        }
-      }
-    } catch (notificationError) {
-      // Don't fail the unfollow action if notification fails
-      console.error("Error sending unfollow notification:", notificationError);
-    }
 
     res.status(200).json({
       success: true,

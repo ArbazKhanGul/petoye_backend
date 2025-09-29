@@ -167,7 +167,7 @@ class NotificationService {
         large_icon: "ic_launcher",
         // Sound and priority
         priority: priority === "urgent" ? 10 : 6,
-        android_channel_id: "petoye_notifications",
+        // android_channel_id: "petoye_notifications",
       };
 
       console.log(`📱 Sending push notification to ${userId}:`, {

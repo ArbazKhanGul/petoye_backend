@@ -19,7 +19,10 @@ const messageSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      required: true,
+      required: function () {
+        // Content is required for text messages, optional for media messages
+        return this.messageType === "text";
+      },
       trim: true,
       maxlength: 2000,
     },
@@ -44,6 +47,13 @@ const messageSchema = new mongoose.Schema(
     readAt: {
       type: Date,
     },
+    // Track who deleted the message (soft delete)
+    deletedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   {
     timestamps: true,
