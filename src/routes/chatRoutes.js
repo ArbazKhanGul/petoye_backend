@@ -6,7 +6,9 @@ const {
   markMessagesAsRead,
   deleteConversation,
   getConversationWithUser,
+  deleteMessageForSelf,
 } = require("../controllers/chatController");
+
 const authMiddleware = require("../middleware/authMiddleware");
 
 // Apply authentication middleware to all routes
@@ -328,5 +330,39 @@ router.delete("/conversations/:conversationId", deleteConversation);
  *         description: Other user not found
  */
 router.post("/conversations/get-with-user", getConversationWithUser);
+
+/**
+ * @swagger
+ * /api/chat/messages/{messageId}:
+ *   delete:
+ *     summary: Delete a message for the current user (soft delete)
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Message ID
+ *     responses:
+ *       200:
+ *         description: Message deleted for current user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       403:
+ *         description: Not allowed to delete this message
+ *       404:
+ *         description: Message not found
+ */
+router.delete("/messages/:messageId", deleteMessageForSelf);
 
 module.exports = router;

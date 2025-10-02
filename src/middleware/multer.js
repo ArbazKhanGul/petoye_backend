@@ -56,15 +56,38 @@ var storage = multer.diskStorage({
 
 // File filter function
 const fileFilter = (req, file, cb) => {
-  // Accept images and videos
-  if (
-    file.mimetype.startsWith("image/") ||
-    file.mimetype.startsWith("video/")
-  ) {
+  // Accept images, videos, and common document types
+  const allowedMimeTypes = [
+    // Images
+    /^image\//,
+    // Videos
+    /^video\//,
+    // Documents
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/x-rar-compressed",
+    "application/octet-stream",
+  ];
+
+  const isAllowed = allowedMimeTypes.some((type) =>
+    type instanceof RegExp ? type.test(file.mimetype) : file.mimetype === type
+  );
+
+  if (isAllowed) {
     cb(null, true);
   } else {
     cb(
-      new Error("Unsupported file type. Only images and videos are allowed."),
+      new Error(
+        "Unsupported file type. Only images, videos, and documents are allowed."
+      ),
       false
     );
   }

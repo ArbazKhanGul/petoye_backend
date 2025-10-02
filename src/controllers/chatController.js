@@ -465,10 +465,81 @@ const getConversationWithUser = async (req, res, next) => {
   }
 };
 
+/**
+ * Delete a message for the current user (soft delete)
+ * @route DELETE /api/chat/messages/:messageId
+ * @access Private
+ */
+const deleteMessageForSelf = async (req, res, next) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return next(new AppError("Message not found", 404));
+    }
+
+    // Only allow participants to delete
+    if (
+      message.sender.toString() !== userId.toString() &&
+      message.receiver.toString() !== userId.toString()
+    ) {
+      return next(
+        new AppError("You are not allowed to delete this message", 403)
+      );
+    }
+
+    // Add user to deletedBy if not already present
+    let wasLastMessage = false;
+    if (!message.deletedBy.includes(userId)) {
+      // Check if this message is the lastMessage for the conversation
+      const conversation = await Conversation.findById(message.conversation);
+      if (
+        conversation &&
+        conversation.lastMessage &&
+        conversation.lastMessage.toString() === message._id.toString()
+      ) {
+        wasLastMessage = true;
+      }
+
+      message.deletedBy.push(userId);
+      await message.save();
+
+      // If it was the last message, update conversation's lastMessage and lastMessageAt
+      if (wasLastMessage && conversation) {
+        // Find the latest non-deleted message for this user in this conversation
+        const latestMessage = await Message.findOne({
+          conversation: conversation._id,
+          deletedBy: { $ne: userId },
+        }).sort({ createdAt: -1 });
+
+        if (latestMessage) {
+          conversation.lastMessage = latestMessage._id;
+          conversation.lastMessageAt = latestMessage.createdAt;
+        } else {
+          // No messages left for this user
+          conversation.lastMessage = null;
+          conversation.lastMessageAt = null;
+        }
+        await conversation.save();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Message deleted for current user",
+    });
+  } catch (error) {
+    next(new AppError(error.message, 500));
+  }
+};
+
 module.exports = {
   getConversations,
   getMessages,
   markMessagesAsRead,
   deleteConversation,
   getConversationWithUser,
+  deleteMessageForSelf,
 };
