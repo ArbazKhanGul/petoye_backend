@@ -19,6 +19,7 @@ const notificationSchema = new Schema(
         // Post-related notifications
         "post_like",
         "post_comment",
+        "comment_reply", // Reply to a comment
 
         // Follow-related notifications
         "new_follower",

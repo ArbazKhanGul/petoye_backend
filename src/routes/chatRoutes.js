@@ -7,6 +7,7 @@ const {
   deleteConversation,
   getConversationWithUser,
   deleteMessageForSelf,
+  getUnreadMessagesCount,
 } = require("../controllers/chatController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -136,6 +137,37 @@ router.use(authMiddleware);
  *                       $ref: '#/components/schemas/Pagination'
  */
 router.get("/conversations", getConversations);
+
+/**
+ * @swagger
+ * /api/chat/unread-count:
+ *   get:
+ *     summary: Get unread messages count for the authenticated user
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unread messages count retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     unreadCount:
+ *                       type: number
+ *                       description: Total number of unread messages
+ *       401:
+ *         description: Unauthorized - Invalid token
+ *       500:
+ *         description: Server error
+ */
+router.get("/unread-count", getUnreadMessagesCount);
 
 /**
  * @swagger

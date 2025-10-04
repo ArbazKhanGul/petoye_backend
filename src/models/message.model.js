@@ -39,6 +39,10 @@ const messageSchema = new mongoose.Schema(
       type: String,
       enum: ["image", "video", "audio", "file"],
     },
+    // Store original filename for better UX
+    originalFileName: {
+      type: String,
+    },
     // Simple read tracking
     isRead: {
       type: Boolean,

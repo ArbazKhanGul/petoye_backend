@@ -70,8 +70,8 @@ function handleConnection(io, socket) {
         mediaUrl,
         mediaType,
         tempId,
+        originalFileName, // Add original filename from frontend
       } = data;
-
       console.log(
         "🚀 ~ handleConnection ~ socket.userId:-----------------------------",
         socket.userId
@@ -179,6 +179,7 @@ function handleConnection(io, socket) {
         messageType,
         mediaUrl,
         mediaType: mediaTypeEnum, // Use the converted enum value
+        originalFileName, // Store original filename
         receiver: recipientId,
         status: "sent",
       });
@@ -210,6 +211,7 @@ function handleConnection(io, socket) {
         messageType: message.messageType,
         mediaUrl: message.mediaUrl,
         mediaType: message.mediaType,
+        originalFileName: message.originalFileName, // Include original filename
         status: message.status,
         isRead: message.isRead,
         createdAt: message.createdAt,

@@ -245,6 +245,7 @@ const getMessages = async (req, res, next) => {
 const markMessagesAsRead = async (req, res, next) => {
   try {
     const { conversationId } = req.params;
+    console.log("🚀 ~ markMessagesAsRead ~ conversationId:", conversationId);
     const userId = req.user._id;
 
     // Check if conversation exists and user is participant
@@ -290,7 +291,7 @@ const markMessagesAsRead = async (req, res, next) => {
           connectionManager.sendToUser(
             io,
             participantId.toString(),
-            "messages:read",
+            "chat:messagesRead",
             {
               conversationId,
               readBy: userId,
@@ -535,6 +536,35 @@ const deleteMessageForSelf = async (req, res, next) => {
   }
 };
 
+/**
+ * Get unread messages count for the authenticated user
+ * @route GET /api/chat/unread-count
+ * @access Private
+ */
+const getUnreadMessagesCount = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    // Count unread messages across all conversations where user is the receiver
+    const unreadCount = await Message.countDocuments({
+      receiver: userId,
+      isRead: false,
+      // Exclude messages deleted by the user
+      deletedBy: { $ne: userId },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        unreadCount,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching unread messages count:", error);
+    next(new AppError("Failed to fetch unread messages count", 500));
+  }
+};
+
 module.exports = {
   getConversations,
   getMessages,
@@ -542,4 +572,5 @@ module.exports = {
   deleteConversation,
   getConversationWithUser,
   deleteMessageForSelf,
+  getUnreadMessagesCount,
 };
