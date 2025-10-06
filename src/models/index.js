@@ -12,6 +12,7 @@ const Follow = require("./follow.model");
 const Notification = require("./notification.model");
 const Conversation = require("./conversation.model");
 const Message = require("./message.model");
+const PostView = require("./postView.model");
 
 module.exports = {
   User,
@@ -28,4 +29,5 @@ module.exports = {
   Notification,
   Conversation,
   Message,
+  PostView,
 };

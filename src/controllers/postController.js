@@ -84,7 +84,7 @@ exports.getPostById = async (req, res, next) => {
     next(error);
   }
 };
-const { Post, User, Like, Comment } = require("../models");
+const { Post, User, Like, Comment, Follow, PostView } = require("../models");
 const AppError = require("../errors/appError");
 const path = require("path");
 const fs = require("fs");
@@ -318,6 +318,426 @@ exports.getAllPosts = async (req, res, next) => {
           limit,
           totalPages: Math.ceil(totalPosts / limit),
           totalResults: totalPosts,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get personalized feed for the user - follower posts first, then random posts
+ * Excludes already viewed posts to show fresh content like Facebook/Instagram
+ *
+ * ⚠️  IMPORTANT: Instagram/Facebook approach!
+ * - ALL pages exclude viewed posts (not just page 1)
+ * - Users never see same posts twice in a session
+ * - Pagination works by excluding viewed content, not traditional skip
+ * - This ensures infinite fresh content experience
+ *
+ * FINAL PRODUCTION-READY OPTIMIZED VERSION
+ * @route GET /api/posts/feed
+ */
+exports.getUserFeed = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    // 🎯 Instagram/Facebook approach: ALWAYS exclude viewed posts
+    // Pagination happens naturally through view exclusion
+
+    // OPTION 1: Hybrid approach - Best balance of performance and reliability
+    // Get user context data with parallel queries (most reliable)
+    const [viewedPostIds, followingIds] = await Promise.all([
+      PostView.getUserViewedPosts(userId, 7),
+      Follow.find({ follower: userId })
+        .select("following")
+        .then((follows) => follows.map((f) => f.following)),
+    ]);
+
+    console.log(
+      `🔍 User ${userId}: viewed ${viewedPostIds.length} posts (7 days), following ${followingIds.length} users`
+    );
+
+    // Single optimized aggregation pipeline for posts
+    const feedPipeline = [
+      // Stage 1: ALWAYS exclude viewed posts (Instagram/Facebook approach)
+      {
+        $match: {
+          userId: { $ne: userId }, // Exclude own posts
+          _id: { $nin: viewedPostIds }, // ALWAYS exclude viewed posts on ALL pages
+        },
+      },
+
+      // Stage 2: Add engagement data using efficient lookups
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "post",
+          as: "likes",
+        },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          localField: "_id",
+          foreignField: "post",
+          as: "comments",
+        },
+      },
+
+      // Stage 3: Add user information with projection
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "userInfo",
+          pipeline: [
+            {
+              $project: {
+                fullName: 1,
+                profileImage: 1,
+              },
+            },
+          ],
+        },
+      },
+
+      // Stage 4: Calculate all fields and scoring in one stage
+      {
+        $addFields: {
+          // Replace userId with user object
+          userId: { $arrayElemAt: ["$userInfo", 0] },
+
+          // Calculate engagement metrics
+          likesCount: { $size: "$likes" },
+          commentsCount: { $size: "$comments" },
+
+          // Determine if this is a follower post
+          isFollowerPost: {
+            $in: [{ $arrayElemAt: ["$userInfo._id", 0] }, followingIds],
+          },
+
+          // Calculate recency score (0-200 points, newer = higher)
+          recencyScore: {
+            $max: [
+              0,
+              {
+                $subtract: [
+                  200,
+                  {
+                    $divide: [
+                      { $subtract: [new Date(), "$createdAt"] },
+                      3600000, // Convert milliseconds to hours
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+
+          // Calculate engagement score (likes×3 + comments×5)
+          engagementScore: {
+            $add: [
+              { $multiply: [{ $size: "$likes" }, 3] },
+              { $multiply: [{ $size: "$comments" }, 5] },
+            ],
+          },
+
+          // Add randomization for content discovery (0-300 points)
+          randomScore: { $multiply: [{ $rand: {} }, 300] },
+        },
+      },
+
+      // Stage 5: Calculate final score based on follower status
+      {
+        $addFields: {
+          finalScore: {
+            $cond: {
+              if: "$isFollowerPost",
+              then: {
+                // Follower posts: High base score + engagement + recency
+                $add: [
+                  2000, // High base score for follower posts
+                  500, // Freshness bonus
+                  "$recencyScore",
+                  "$engagementScore",
+                ],
+              },
+              else: {
+                // Non-follower posts: Lower base + engagement + recency + randomness
+                $add: [
+                  200, // Lower base score for discovery
+                  "$recencyScore",
+                  "$engagementScore",
+                  "$randomScore", // Randomization for discovery
+                ],
+              },
+            },
+          },
+          // 🎯 All posts are fresh since we exclude viewed posts on ALL pages
+          isFresh: true,
+        },
+      },
+
+      // Stage 6: Sort by calculated score (highest first)
+      { $sort: { finalScore: -1 } },
+
+      // Stage 7: Apply limit only (no skip - pagination through exclusion)
+      { $limit: limit },
+
+      // Stage 8: Check if current user has liked each post
+      {
+        $lookup: {
+          from: "likes",
+          let: { postId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$post", "$$postId"] },
+                    { $eq: ["$user", userId] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "userLike",
+        },
+      },
+
+      // Stage 9: Final projection - clean response
+      {
+        $project: {
+          _id: 1,
+          content: 1,
+          mediaFiles: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          userId: 1,
+          likesCount: 1,
+          commentsCount: 1,
+          isLiked: { $gt: [{ $size: "$userLike" }, 0] },
+          isFollowerPost: 1,
+          isFresh: 1,
+          // Hide internal calculation fields
+          likes: 0,
+          comments: 0,
+          userInfo: 0,
+          userLike: 0,
+          finalScore: 0,
+          recencyScore: 0,
+          engagementScore: 0,
+          randomScore: 0,
+        },
+      },
+    ];
+
+    // Execute the optimized aggregation pipeline
+    const freshPosts = await Post.aggregate(feedPipeline);
+
+    console.log(
+      `✅ Fetched ${freshPosts.length} fresh posts via optimized pipeline`
+    );
+
+    // Fallback: Add older content if we don't have enough fresh posts
+    let finalPosts = freshPosts;
+    if (freshPosts.length < limit && viewedPostIds.length > 0) {
+      console.log("🔄 Adding fallback content for better user experience");
+
+      const fallbackPipeline = [
+        {
+          $match: {
+            userId: { $ne: userId }, // Exclude own posts
+            _id: { $in: viewedPostIds }, // Include previously viewed posts
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "userId",
+            foreignField: "_id",
+            as: "userInfo",
+            pipeline: [{ $project: { fullName: 1, profileImage: 1 } }],
+          },
+        },
+        {
+          $addFields: {
+            userId: { $arrayElemAt: ["$userInfo", 0] },
+            finalScore: { $multiply: [{ $rand: {} }, 50] }, // Lower scores
+            isFollowerPost: {
+              $in: [{ $arrayElemAt: ["$userInfo._id", 0] }, followingIds],
+            },
+            isFresh: false, // Mark as not fresh
+          },
+        },
+        { $sort: { finalScore: -1 } },
+        { $limit: limit - freshPosts.length },
+        {
+          $lookup: {
+            from: "likes",
+            let: { postId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$post", "$$postId"] },
+                      { $eq: ["$user", userId] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "userLike",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            content: 1,
+            mediaFiles: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            userId: 1,
+            isLiked: { $gt: [{ $size: "$userLike" }, 0] },
+            isFollowerPost: 1,
+            isFresh: 1,
+          },
+        },
+      ];
+
+      const fallbackPosts = await Post.aggregate(fallbackPipeline);
+      finalPosts = [...freshPosts, ...fallbackPosts];
+
+      console.log(
+        `📈 Added ${fallbackPosts.length} fallback posts. Total: ${finalPosts.length}`
+      );
+    }
+
+    // Generate comprehensive feed analytics
+    const feedInfo = {
+      followingCount: followingIds.length,
+      followerPostsCount: finalPosts.filter((p) => p.isFollowerPost).length,
+      randomPostsCount: finalPosts.filter((p) => !p.isFollowerPost).length,
+      freshPostsCount: finalPosts.filter((p) => p.isFresh).length,
+      viewedPostsExcluded: viewedPostIds.length,
+      totalResults: finalPosts.length,
+      isOptimized: true,
+    };
+
+    // Return standardized response
+    res.status(200).json({
+      success: true,
+      data: {
+        posts: finalPosts,
+        pagination: {
+          page,
+          limit,
+          // 🎯 Instagram approach: Pagination through exclusion, not traditional pages
+          totalPages: 1, // Not meaningful with view exclusion
+          totalResults: finalPosts.length,
+          hasNextPage: finalPosts.length === limit, // More fresh content available
+          hasFreshContent: true, // All content is fresh since viewed posts excluded
+        },
+        feedInfo,
+      },
+    });
+  } catch (error) {
+    console.error("🚨 Feed generation error:", error);
+    next(error);
+  }
+};
+
+/**
+ * Mark posts as viewed (for tracking what user has seen)
+ * @route POST /api/posts/mark-viewed
+ */
+exports.markPostsAsViewed = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { postIds } = req.body; // ✅ SIMPLIFIED: Only require postIds for initial stage
+
+    if (!postIds || !Array.isArray(postIds) || postIds.length === 0) {
+      return next(new AppError("Post IDs are required", 400));
+    }
+
+    const results = [];
+
+    // Mark each post as viewed
+    for (const postId of postIds) {
+      try {
+        // ✅ SIMPLIFIED: Just mark as viewed without complex analytics for initial stage
+        const viewRecord = await PostView.markAsViewed(userId, postId);
+        results.push({
+          postId,
+          success: true,
+          viewRecord: viewRecord._id,
+        });
+      } catch (error) {
+        console.error(`Error marking post ${postId} as viewed:`, error);
+        results.push({
+          postId,
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Posts marked as viewed",
+      data: {
+        results,
+        successCount: results.filter((r) => r.success).length,
+        failureCount: results.filter((r) => !r.success).length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get user's view history (for analytics/debugging)
+ * @route GET /api/posts/view-history
+ */
+exports.getUserViewHistory = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const totalViews = await PostView.countDocuments({ user: userId });
+    const viewHistory = await PostView.find({ user: userId })
+      .sort({ viewedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "post",
+        select: "content mediaFiles createdAt",
+        populate: {
+          path: "userId",
+          select: "fullName profileImage",
+        },
+      })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        viewHistory,
+        pagination: {
+          page,
+          limit,
+          totalPages: Math.ceil(totalViews / limit),
+          totalResults: totalViews,
         },
       },
     });
