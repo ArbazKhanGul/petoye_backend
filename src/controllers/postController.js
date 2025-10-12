@@ -350,22 +350,22 @@ exports.getUserFeed = async (req, res, next) => {
 
     // fallback offsets (continue across requests after fresh is exhausted)
     const f1Offset = Math.max(0, parseInt(req.query.f1Offset) || 0);
+    console.log("🚀 ~ req.query:", req.query);
     const f2Offset = Math.max(0, parseInt(req.query.f2Offset) || 0);
-
-    const FOLLOWER_RATIO = 0.7; // follower/discovery blend
+    const FOLLOWER_RATIO = 0.5; // follower/discovery blend
     const WINDOW_DAYS = 14; // consider recent posts only
     const VIEWED_NIN_CAP = 2000; // cap exclusion list for $nin
     const windowStart = new Date(
       Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000
     );
 
-    // 1) Quotas per page
+    // 1) Quotas per page (simplified: follower + global)
     const followerQuota = Math.ceil(limit * FOLLOWER_RATIO);
-    const discoveryQuota = Math.max(0, limit - followerQuota);
+    const globalQuota = Math.max(0, limit - followerQuota);
 
     // 2) Per-facet skips (proportional to overall skip)
-    const followerSkip = Math.floor(skip * FOLLOWER_RATIO);
-    const discoverySkip = Math.max(0, skip - followerSkip);
+    const followerSkip = Math.ceil(skip * FOLLOWER_RATIO);
+    const globalSkip = Math.max(0, skip - followerSkip);
 
     // ---- Parallel user context ----
     const [viewedRaw, follows] = await Promise.all([
@@ -384,7 +384,7 @@ exports.getUserFeed = async (req, res, next) => {
 
     // ---- Index-friendly base filter (reused in facets) ----
     const baseMatch = {
-      createdAt: { $gte: windowStart },
+      // createdAt: { $gte: windowStart },
       userId: { $ne: userId },
       _id: { $nin: viewedPostIds },
     };
@@ -523,8 +523,19 @@ exports.getUserFeed = async (req, res, next) => {
                   { $multiply: ["$commentsCount", 5] },
                 ],
               },
-              // deterministic "random" (stable across requests)
-              randomScore: { $mod: [{ $toLong: "$_id" }, 300] },
+              // deterministic "random" (stable across requests) - safe ObjectId conversion
+              randomScore: {
+                $mod: [
+                  {
+                    $convert: {
+                      input: "$_id",
+                      to: "long",
+                      onError: 0,
+                    },
+                  },
+                  300,
+                ],
+              },
               finalScore: {
                 $add: [
                   200,
@@ -539,7 +550,7 @@ exports.getUserFeed = async (req, res, next) => {
           },
           { $sort: { finalScore: -1, createdAt: -1, _id: -1 } },
           ...(discoverySkip ? [{ $skip: discoverySkip }] : []),
-          { $limit: Math.max(0, discoveryQuota) },
+          { $limit: Math.max(0, discoveryQuota + 1) },
 
           {
             $lookup: {
@@ -617,25 +628,162 @@ exports.getUserFeed = async (req, res, next) => {
 
     // For fallbacks, exclude already chosen fresh IDs
     const excludeIdsSet = new Set(finalPosts.map((p) => String(p._id)));
-    const excludeAlready = {
-      _id: {
-        $nin: Array.from(excludeIdsSet).map((id) => new Types.ObjectId(id)),
-      },
-    };
+    console.log("🚀 ~ finalPosts: before fallback 1", finalPosts.length);
+    // ---------------- Fallback #1: global (still short) ----------------
+    let globalFallback = [];
+    if (finalPosts.length < limit) {
+      const need = limit - finalPosts.length;
 
-    // ---------------- Fallback #1: previously viewed (not fresh) ----------------
+      // Properly convert all existing post IDs to ObjectId for exclusion
+      const allExistingIds = [
+        ...Array.from(excludeIdsSet).map((id) => new Types.ObjectId(id)),
+        ...viewedPostIds,
+      ];
+
+      // Debug: Check how many posts exist that could be returned
+      // const potentialPostsCount = await Post.countDocuments({
+      //   userId: { $ne: userId },
+      //   // createdAt: { $gte: windowStart },
+      //   _id: { $nin: allExistingIds },
+      // });
+      // console.log(
+      //   "🚀 ~ potentialPostsCount for global fallback:",
+      //   potentialPostsCount
+      // );
+
+      globalFallback = await Post.aggregate(
+        [
+          {
+            $match: {
+              userId: { $ne: userId },
+              // createdAt: { $gte: windowStart },
+              _id: {
+                $nin: allExistingIds,
+              },
+            },
+          },
+          {
+            $set: {
+              likesCount: { $ifNull: ["$likesCount", 0] },
+              commentsCount: { $ifNull: ["$commentsCount", 0] },
+            },
+          },
+          // Deterministic ranking for cold-start fill
+          {
+            $addFields: {
+              popScore: {
+                $add: ["$likesCount", { $multiply: ["$commentsCount", 2] }],
+              },
+              ageHrs: {
+                $divide: [{ $subtract: [new Date(), "$createdAt"] }, 3600000],
+              },
+              jitter: {
+                $mod: [
+                  {
+                    $convert: {
+                      input: "$_id",
+                      to: "long",
+                      onError: 0,
+                    },
+                  },
+                  25,
+                ],
+              },
+              finalScore: {
+                $add: [
+                  { $min: ["$popScore", 150] },
+                  { $subtract: [100, { $min: [{ $floor: "$ageHrs" }, 100] }] },
+                  "$jitter",
+                ],
+              },
+              isFollowerPost: { $in: ["$userId", followingIds] },
+              isFresh: true,
+            },
+          },
+          { $sort: { finalScore: -1, createdAt: -1, _id: -1 } },
+          ...(f2Offset ? [{ $skip: f2Offset }] : []),
+          { $limit: need },
+
+          {
+            $lookup: {
+              from: "users",
+              localField: "userId",
+              foreignField: "_id",
+              as: "author",
+              pipeline: [{ $project: { fullName: 1, profileImage: 1 } }],
+            },
+          },
+          {
+            $set: {
+              author: { $ifNull: [{ $arrayElemAt: ["$author", 0] }, null] },
+            },
+          },
+          {
+            $lookup: {
+              from: "likes",
+              let: { pid: "$_id", uid: userId },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$post", "$$pid"] },
+                        { $eq: ["$user", "$$uid"] },
+                      ],
+                    },
+                  },
+                },
+                { $limit: 1 },
+              ],
+              as: "userLike",
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              content: 1,
+              mediaFiles: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              posterId: "$userId",
+              author: 1,
+              likesCount: 1,
+              commentsCount: 1,
+              isFollowerPost: 1,
+              isFresh: 1,
+              isLiked: { $gt: [{ $size: "$userLike" }, 0] },
+            },
+          },
+        ],
+        { allowDiskUse: true }
+      );
+
+      finalPosts = [...finalPosts, ...globalFallback];
+
+      globalFallback = globalFallback || [];
+    }
+
+    console.log("🚀 ~ finalPosts: before fallback 2", finalPosts.length);
+    // ---------------- Fallback #2: previously viewed (not fresh) ----------------
     let viewedFallback = [];
     if (finalPosts.length < limit && viewedPostIds.length > 0) {
       const need = limit - finalPosts.length;
+
+      // Exclude posts already in finalPosts from the viewed fallback
+      const excludeAlreadyIds = finalPosts.map(
+        (p) => new Types.ObjectId(String(p._id))
+      );
 
       viewedFallback = await Post.aggregate(
         [
           {
             $match: {
               userId: { $ne: userId },
-              _id: { $in: viewedPostIds },
+              _id: {
+                $in: viewedPostIds,
+                $nin: excludeAlreadyIds,
+              },
               createdAt: { $gte: windowStart },
-              ...excludeAlready,
             },
           },
           {
@@ -653,7 +801,18 @@ exports.getUserFeed = async (req, res, next) => {
               ageHrs: {
                 $divide: [{ $subtract: [new Date(), "$createdAt"] }, 3600000],
               },
-              jitter: { $mod: [{ $toLong: "$_id" }, 50] },
+              jitter: {
+                $mod: [
+                  {
+                    $convert: {
+                      input: "$_id",
+                      to: "long",
+                      onError: 0,
+                    },
+                  },
+                  50,
+                ],
+              },
               finalScore: {
                 $add: [
                   "$popScore",
@@ -728,115 +887,15 @@ exports.getUserFeed = async (req, res, next) => {
       viewedFallback = viewedFallback || [];
     }
 
-    // ---------------- Fallback #2: global (still short) ----------------
-    let globalFallback = [];
-    if (finalPosts.length < limit) {
-      const need = limit - finalPosts.length;
+    console.log("🚀 ~ finalPosts:", finalPosts.length);
+    console.log(
+      "🚀 ~ finalPosts IDs:",
+      finalPosts.map((po) => po._id.toString())
+    );
 
-      globalFallback = await Post.aggregate(
-        [
-          {
-            $match: {
-              userId: { $ne: userId },
-              createdAt: { $gte: windowStart },
-              _id: {
-                $nin: [
-                  ...Array.from(excludeIdsSet).map(
-                    (id) => new Types.ObjectId(id)
-                  ),
-                  ...finalPosts.map((p) => p._id), // redundant but safe
-                ],
-              },
-            },
-          },
-          {
-            $set: {
-              likesCount: { $ifNull: ["$likesCount", 0] },
-              commentsCount: { $ifNull: ["$commentsCount", 0] },
-            },
-          },
-          // Deterministic ranking for cold-start fill
-          {
-            $addFields: {
-              popScore: {
-                $add: ["$likesCount", { $multiply: ["$commentsCount", 2] }],
-              },
-              ageHrs: {
-                $divide: [{ $subtract: [new Date(), "$createdAt"] }, 3600000],
-              },
-              jitter: { $mod: [{ $toLong: "$_id" }, 25] },
-              finalScore: {
-                $add: [
-                  { $min: ["$popScore", 150] },
-                  { $subtract: [100, { $min: [{ $floor: "$ageHrs" }, 100] }] },
-                  "$jitter",
-                ],
-              },
-              isFollowerPost: { $in: ["$userId", followingIds] },
-              isFresh: true,
-            },
-          },
-          { $sort: { finalScore: -1, createdAt: -1, _id: -1 } },
-          ...(f2Offset ? [{ $skip: f2Offset }] : []),
-          { $limit: need },
-
-          {
-            $lookup: {
-              from: "users",
-              localField: "userId",
-              foreignField: "_id",
-              as: "author",
-              pipeline: [{ $project: { fullName: 1, profileImage: 1 } }],
-            },
-          },
-          {
-            $set: {
-              author: { $ifNull: [{ $arrayElemAt: ["$author", 0] }, null] },
-            },
-          },
-          {
-            $lookup: {
-              from: "likes",
-              let: { pid: "$_id", uid: userId },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $and: [
-                        { $eq: ["$post", "$$pid"] },
-                        { $eq: ["$user", "$$uid"] },
-                      ],
-                    },
-                  },
-                },
-                { $limit: 1 },
-              ],
-              as: "userLike",
-            },
-          },
-          {
-            $project: {
-              _id: 1,
-              content: 1,
-              mediaFiles: 1,
-              createdAt: 1,
-              updatedAt: 1,
-              posterId: "$userId",
-              author: 1,
-              likesCount: 1,
-              commentsCount: 1,
-              isFollowerPost: 1,
-              isFresh: 1,
-              isLiked: { $gt: [{ $size: "$userLike" }, 0] },
-            },
-          },
-        ],
-        { allowDiskUse: true }
-      );
-
-      finalPosts = [...finalPosts, ...globalFallback];
-      globalFallback = globalFallback || [];
-    }
+    // ✅ OPTION A: Track actual fresh posts consumed for accurate pagination
+    const freshPostsConsumed = freshPosts.length;
+    console.log("🚀 ~ freshPostsConsumed:", freshPostsConsumed);
 
     // ---- Response ----
     res.status(200).json({
@@ -849,6 +908,8 @@ exports.getUserFeed = async (req, res, next) => {
           skip,
           hasNextPage: finalPosts.length === limit,
           hasPrevPage: skip > 0,
+          // ✅ NEW: Return actual fresh posts consumed for accurate skip increment
+          freshPostsConsumed,
           // return how many we provided from each pool so the client can update offsets
           f1Returned: (viewedFallback || []).length,
           f2Returned: (globalFallback || []).length,
@@ -869,6 +930,7 @@ exports.markPostsAsViewed = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { postIds } = req.body; // ✅ SIMPLIFIED: Only require postIds for initial stage
+    console.log("🚀 ~ postIds: viewd", postIds);
 
     if (!postIds || !Array.isArray(postIds) || postIds.length === 0) {
       return next(new AppError("Post IDs are required", 400));
