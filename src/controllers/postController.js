@@ -352,20 +352,20 @@ exports.getUserFeed = async (req, res, next) => {
     const f1Offset = Math.max(0, parseInt(req.query.f1Offset) || 0);
     console.log("🚀 ~ req.query:", req.query);
     const f2Offset = Math.max(0, parseInt(req.query.f2Offset) || 0);
-    const FOLLOWER_RATIO = 0.5; // follower/discovery blend
+    const FOLLOWER_RATIO = 1; // follower content priority (global fallback handles non-follower content)
     const WINDOW_DAYS = 14; // consider recent posts only
     const VIEWED_NIN_CAP = 2000; // cap exclusion list for $nin
     const windowStart = new Date(
       Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000
     );
 
-    // 1) Quotas per page (simplified: follower + global)
+    // 1) Quotas per page
     const followerQuota = Math.ceil(limit * FOLLOWER_RATIO);
-    const globalQuota = Math.max(0, limit - followerQuota);
+    // const discoveryQuota = Math.max(0, limit - followerQuota);
 
     // 2) Per-facet skips (proportional to overall skip)
-    const followerSkip = Math.ceil(skip * FOLLOWER_RATIO);
-    const globalSkip = Math.max(0, skip - followerSkip);
+    const followerSkip = skip;
+    // const discoverySkip = Math.max(0, skip - followerSkip);
 
     // ---- Parallel user context ----
     const [viewedRaw, follows] = await Promise.all([
@@ -490,137 +490,18 @@ exports.getUserFeed = async (req, res, next) => {
             },
           },
         ],
-
-        discovery: [
-          { $match: { ...baseMatch, userId: { $nin: followingIds } } },
-          {
-            $set: {
-              likesCount: { $ifNull: ["$likesCount", 0] },
-              commentsCount: { $ifNull: ["$commentsCount", 0] },
-            },
-          },
-          {
-            $addFields: {
-              recencyScore: {
-                $max: [
-                  0,
-                  {
-                    $subtract: [
-                      200,
-                      {
-                        $divide: [
-                          { $subtract: [new Date(), "$createdAt"] },
-                          3600000,
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-              engagementScore: {
-                $add: [
-                  { $multiply: ["$likesCount", 3] },
-                  { $multiply: ["$commentsCount", 5] },
-                ],
-              },
-              // deterministic "random" (stable across requests) - safe ObjectId conversion
-              randomScore: {
-                $mod: [
-                  {
-                    $convert: {
-                      input: "$_id",
-                      to: "long",
-                      onError: 0,
-                    },
-                  },
-                  300,
-                ],
-              },
-              finalScore: {
-                $add: [
-                  200,
-                  "$recencyScore",
-                  "$engagementScore",
-                  "$randomScore",
-                ],
-              },
-              isFollowerPost: false,
-              isFresh: true,
-            },
-          },
-          { $sort: { finalScore: -1, createdAt: -1, _id: -1 } },
-          ...(discoverySkip ? [{ $skip: discoverySkip }] : []),
-          { $limit: Math.max(0, discoveryQuota + 1) },
-
-          {
-            $lookup: {
-              from: "users",
-              localField: "userId",
-              foreignField: "_id",
-              as: "author",
-              pipeline: [{ $project: { fullName: 1, profileImage: 1 } }],
-            },
-          },
-          {
-            $set: {
-              author: { $ifNull: [{ $arrayElemAt: ["$author", 0] }, null] },
-            },
-          },
-
-          {
-            $lookup: {
-              from: "likes",
-              let: { pid: "$_id", uid: userId },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $and: [
-                        { $eq: ["$post", "$$pid"] },
-                        { $eq: ["$user", "$$uid"] },
-                      ],
-                    },
-                  },
-                },
-                { $limit: 1 },
-              ],
-              as: "userLike",
-            },
-          },
-          {
-            $project: {
-              _id: 1,
-              content: 1,
-              mediaFiles: 1,
-              createdAt: 1,
-              updatedAt: 1,
-              posterId: "$userId",
-              author: 1,
-              likesCount: 1,
-              commentsCount: 1,
-              isFollowerPost: 1,
-              isFresh: 1,
-              isLiked: { $gt: [{ $size: "$userLike" }, 0] },
-            },
-          },
-        ],
       },
     };
 
-    // ---- Merge follower+discovery (keep follower-first ordering) ----
-    const mergeAndTrim = [
-      {
-        $project: { combined: { $concatArrays: ["$follower", "$discovery"] } },
-      },
-      { $unwind: "$combined" },
-      { $replaceRoot: { newRoot: "$combined" } },
-      // final tie-breaker (both facets already sorted)
-      { $sort: { isFollowerPost: -1, createdAt: -1, _id: -1 } },
-      { $limit: limit },
-    ];
-
+    // ---- Get follower posts directly (no merge needed with single facet) ----
     const freshPosts = await Post.aggregate(
-      [{ $match: baseMatch }, facetStage, ...mergeAndTrim],
+      [
+        { $match: baseMatch },
+        facetStage,
+        { $project: { follower: 1 } },
+        { $unwind: "$follower" },
+        { $replaceRoot: { newRoot: "$follower" } },
+      ],
       { allowDiskUse: true }
     );
 
@@ -655,7 +536,7 @@ exports.getUserFeed = async (req, res, next) => {
         [
           {
             $match: {
-              userId: { $ne: userId },
+              userId: { $ne: userId, $nin: followingIds }, // Exclude current user AND follower posts
               // createdAt: { $gte: windowStart },
               _id: {
                 $nin: allExistingIds,
@@ -783,7 +664,7 @@ exports.getUserFeed = async (req, res, next) => {
                 $in: viewedPostIds,
                 $nin: excludeAlreadyIds,
               },
-              createdAt: { $gte: windowStart },
+              // createdAt: { $gte: windowStart },
             },
           },
           {
