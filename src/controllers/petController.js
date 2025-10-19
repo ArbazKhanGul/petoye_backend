@@ -84,7 +84,8 @@ exports.createPetListing = async (req, res, next) => {
 
       // Process all media files with their types and thumbnails
       mediaFiles = mediaArr.map((file, index) => {
-        const relativePath = `/images/petlisting/${file.filename}`;
+        // For S3 storage, use the location URL provided by multer-s3
+        const mediaUrl = file.location || `/images/petlisting/${file.filename}`;
 
         // Determine file type with multiple fallbacks
         let fileType;
@@ -114,7 +115,7 @@ exports.createPetListing = async (req, res, next) => {
 
         // Create media object
         const mediaObject = {
-          url: relativePath,
+          url: mediaUrl,
           type: fileType,
           name: file.originalname,
           size: file.size,
@@ -129,7 +130,9 @@ exports.createPetListing = async (req, res, next) => {
             console.log(
               `Pet listing - Using explicit thumbnail mapping for video ${index}`
             );
-            mediaObject.thumbnail = `/images/petlisting/${thumbnailMapping[index].filename}`;
+            mediaObject.thumbnail =
+              thumbnailMapping[index].location ||
+              `/images/petlisting/${thumbnailMapping[index].filename}`;
             console.log(
               `Pet listing - Thumbnail path set: ${mediaObject.thumbnail}`
             );
@@ -141,7 +144,8 @@ exports.createPetListing = async (req, res, next) => {
             );
             // Use the next available thumbnail
             const thumbFile = thumbArr.shift();
-            mediaObject.thumbnail = `/images/petlisting/${thumbFile.filename}`;
+            mediaObject.thumbnail =
+              thumbFile.location || `/images/petlisting/${thumbFile.filename}`;
             console.log(
               `Pet listing - Fallback thumbnail path set: ${mediaObject.thumbnail}`
             );
@@ -401,7 +405,8 @@ exports.updatePetListing = async (req, res, next) => {
 
       // Process all media files with their types and thumbnails
       mediaFiles = mediaArr.map((file, index) => {
-        const relativePath = `/images/petlisting/${file.filename}`;
+        // For S3 storage, use the location URL provided by multer-s3
+        const mediaUrl = file.location || `/images/petlisting/${file.filename}`;
 
         // Determine file type with multiple fallbacks
         let fileType;
@@ -430,7 +435,7 @@ exports.updatePetListing = async (req, res, next) => {
         );
 
         const mediaObject = {
-          url: relativePath,
+          url: mediaUrl,
           type: fileType,
           name: file.originalname,
           size: file.size,
@@ -443,7 +448,9 @@ exports.updatePetListing = async (req, res, next) => {
             console.log(
               `Pet Update - Using explicit thumbnail mapping for video ${index}`
             );
-            mediaObject.thumbnail = `/images/petlisting/${thumbnailMapping[index].filename}`;
+            mediaObject.thumbnail =
+              thumbnailMapping[index].location ||
+              `/images/petlisting/${thumbnailMapping[index].filename}`;
             console.log(
               `Pet Update - Thumbnail path set: ${mediaObject.thumbnail}`
             );
@@ -455,7 +462,8 @@ exports.updatePetListing = async (req, res, next) => {
             );
             // Use the next available thumbnail
             const thumbFile = thumbArr.shift();
-            mediaObject.thumbnail = `/images/petlisting/${thumbFile.filename}`;
+            mediaObject.thumbnail =
+              thumbFile.location || `/images/petlisting/${thumbFile.filename}`;
           } else {
             console.log(
               `Pet Update - No thumbnail available for video ${index}`

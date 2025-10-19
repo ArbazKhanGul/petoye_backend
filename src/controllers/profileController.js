@@ -1,5 +1,6 @@
 const { User } = require("../models");
 const AppError = require("../errors/appError");
+const { getFileUrl } = require("../utils/fileUrlUtils");
 
 /**
  * Get current user profile
@@ -95,8 +96,8 @@ exports.updateProfileImage = async (req, res, next) => {
       return next(new AppError("No image file provided", 400));
     }
 
-    // Create relative path for the uploaded image
-    const profileImagePath = `/images/profile/${req.file.filename}`;
+    // Get the appropriate file URL (CloudFront > S3 > Local)
+    const profileImagePath = getFileUrl(req.file, "profile");
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,

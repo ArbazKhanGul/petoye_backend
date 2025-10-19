@@ -20,8 +20,11 @@ exports.uploadChatMedia = async (req, res, next) => {
     const { file, user } = req;
     const mediaType = getMediaType(file.mimetype);
 
-    // Create file URL
-    const fileUrl = `/images/chat/${file.filename}`;
+    // Use CloudFront URL if available, fallback to S3 location, then local path
+    const fileUrl =
+      req.file.cloudFrontUrl ||
+      req.file.location ||
+      `/images/chat/${file.filename}`;
 
     // Save file information to database
     const chatFile = new ChatFile({

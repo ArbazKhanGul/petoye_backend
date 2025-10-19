@@ -159,7 +159,11 @@ exports.createPost = async (req, res, next) => {
 
       // Process all media files with their types and thumbnails
       mediaFiles = mediaArr.map((file, index) => {
-        const relativePath = `/images/posts/${path.basename(file.path)}`;
+        // Use CloudFront URL if available, fallback to S3 location, then local path
+        const mediaUrl =
+          file.cloudFrontUrl ||
+          file.location ||
+          `/images/posts/${path.basename(file.path)}`;
 
         // Determine file type with multiple fallbacks
         let fileType;
@@ -187,7 +191,7 @@ exports.createPost = async (req, res, next) => {
 
         // Create media object
         const mediaObject = {
-          url: relativePath,
+          url: mediaUrl,
           type: fileType,
         };
 
@@ -198,9 +202,10 @@ exports.createPost = async (req, res, next) => {
           // Check explicit mapping first (our new method)
           if (thumbnailMapping[index]) {
             console.log(`Using explicit thumbnail mapping for video ${index}`);
-            mediaObject.thumbnail = `/images/posts/${path.basename(
-              thumbnailMapping[index].path
-            )}`;
+            mediaObject.thumbnail =
+              thumbnailMapping[index].cloudFrontUrl ||
+              thumbnailMapping[index].location ||
+              `/images/posts/${path.basename(thumbnailMapping[index].path)}`;
             console.log(`Thumbnail path set: ${mediaObject.thumbnail}`);
           }
           // Fallback to old method
@@ -208,9 +213,10 @@ exports.createPost = async (req, res, next) => {
             console.log(`Using fallback thumbnail for video ${index}`);
             // Use the next available thumbnail
             const thumbFile = thumbArr.shift();
-            mediaObject.thumbnail = `/images/posts/${path.basename(
-              thumbFile.path
-            )}`;
+            mediaObject.thumbnail =
+              thumbFile.cloudFrontUrl ||
+              thumbFile.location ||
+              `/images/posts/${path.basename(thumbFile.path)}`;
             console.log(
               `Fallback thumbnail path set: ${mediaObject.thumbnail}`
             );
@@ -382,10 +388,13 @@ exports.getUserFeed = async (req, res, next) => {
       (f) => new Types.ObjectId(String(f.following))
     );
 
+    // Include current user's own posts in the feed
+    followingIds.push(userId);
+
     // ---- Index-friendly base filter (reused in facets) ----
     const baseMatch = {
       // createdAt: { $gte: windowStart },
-      userId: { $ne: userId },
+      // userId: { $ne: userId },
       _id: { $nin: viewedPostIds },
     };
 
@@ -536,7 +545,7 @@ exports.getUserFeed = async (req, res, next) => {
         [
           {
             $match: {
-              userId: { $ne: userId, $nin: followingIds }, // Exclude current user AND follower posts
+              userId: { $nin: followingIds }, // Exclude current user AND follower posts
               // createdAt: { $gte: windowStart },
               _id: {
                 $nin: allExistingIds,
@@ -659,7 +668,7 @@ exports.getUserFeed = async (req, res, next) => {
         [
           {
             $match: {
-              userId: { $ne: userId },
+              // userId: { $ne: userId },
               _id: {
                 $in: viewedPostIds,
                 $nin: excludeAlreadyIds,
@@ -1104,7 +1113,9 @@ exports.updatePost = async (req, res, next) => {
 
       // Process new media files
       const newMediaFiles = mediaArr.map((file, index) => {
-        const relativePath = `/images/posts/${path.basename(file.path)}`;
+        // For S3 storage, use the location URL provided by multer-s3
+        const mediaUrl =
+          file.location || `/images/posts/${path.basename(file.path)}`;
 
         let fileType;
         if (
@@ -1122,21 +1133,21 @@ exports.updatePost = async (req, res, next) => {
         }
 
         const mediaObject = {
-          url: relativePath,
+          url: mediaUrl,
           type: fileType,
         };
 
         // Add thumbnail for videos
         if (fileType === "video" || fileType.startsWith("video/")) {
           if (thumbnailMapping[index]) {
-            mediaObject.thumbnail = `/images/posts/${path.basename(
-              thumbnailMapping[index].path
-            )}`;
+            mediaObject.thumbnail =
+              thumbnailMapping[index].location ||
+              `/images/posts/${path.basename(thumbnailMapping[index].path)}`;
           } else if (thumbArr.length > 0) {
             const thumbFile = thumbArr.shift();
-            mediaObject.thumbnail = `/images/posts/${path.basename(
-              thumbFile.path
-            )}`;
+            mediaObject.thumbnail =
+              thumbFile.location ||
+              `/images/posts/${path.basename(thumbFile.path)}`;
           }
         }
 

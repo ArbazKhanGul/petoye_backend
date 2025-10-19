@@ -1,56 +1,70 @@
 const multer = require("multer");
+const multerS3 = require("multer-s3");
+const { S3Client } = require("@aws-sdk/client-s3");
 const path = require("path");
-const fs = require("fs");
 
-// Ensure directories exist
-const profileImageDir = path.join(__dirname, "../../images/profile");
-const postsDir = path.join(__dirname, "../../images/posts");
-const petListingDir = path.join(__dirname, "../../images/petlisting");
-const chatDir = path.join(__dirname, "../../images/chat");
-
-// Create directories if they don't exist
-if (!fs.existsSync(profileImageDir)) {
-  fs.mkdirSync(profileImageDir, { recursive: true });
-}
-if (!fs.existsSync(postsDir)) {
-  fs.mkdirSync(postsDir, { recursive: true });
-}
-if (!fs.existsSync(petListingDir)) {
-  fs.mkdirSync(petListingDir, { recursive: true });
-}
-if (!fs.existsSync(chatDir)) {
-  fs.mkdirSync(chatDir, { recursive: true });
-}
-
-// Configure storage based on file type
-var storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    // Use different directories for different types of uploads
-    console.log("🚀 ~ req.baseUrl:", req.baseUrl);
-    if (req.baseUrl === "/api/posts") {
-      cb(null, postsDir);
-    } else if (req.baseUrl === "/api/pets") {
-      cb(null, petListingDir);
-    } else if (req.baseUrl === "/api/upload") {
-      cb(null, chatDir);
-    } else if (req.baseUrl === "/api/profile" || req.baseUrl === "/api/auth") {
-      // Profile images go to profile directory
-      cb(null, profileImageDir);
-    } else {
-      cb(null, profileImageDir); // Default to profile directory
-    }
+// Configure AWS S3 Client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || "us-east-1",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
-  filename: function (req, file, cb) {
-    var ext = path.extname(file.originalname);
-    cb(
-      null,
-      file.fieldname +
-        "-" +
-        Date.now() +
-        "-" +
-        Math.round(Math.random() * 1e9) +
-        ext
-    );
+});
+
+// Helper function to construct CloudFront URL
+const getCloudFrontUrl = (key) => {
+  const cloudFrontUrl = process.env.CLOUDFRONT_DOMAIN_NAME;
+  if (cloudFrontUrl) {
+    return `https://${cloudFrontUrl}/${key}`;
+  }
+  // Fallback to S3 direct URL if CloudFront not configured
+  const region = process.env.AWS_REGION || "us-east-1";
+  const bucket = process.env.AWS_S3_BUCKET_NAME;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+};
+
+// S3 Storage Configuration
+const storage = multerS3({
+  s3: s3Client,
+  bucket: process.env.AWS_S3_BUCKET_NAME,
+  // ACL will be set only if bucket allows it
+  ...(process.env.AWS_S3_ENABLE_ACL === "true" && { acl: "public-read" }),
+  key: function (req, file, cb) {
+    // Generate folder structure based on route
+    let folder = "uploads"; // Default folder
+
+    if (req.baseUrl === "/api/posts") {
+      folder = "posts";
+    } else if (req.baseUrl === "/api/pets") {
+      folder = "petlisting";
+    } else if (req.baseUrl === "/api/upload") {
+      folder = "chat";
+    } else if (req.baseUrl === "/api/profile" || req.baseUrl === "/api/auth") {
+      folder = "profile";
+    }
+
+    // Generate unique filename
+    const ext = path.extname(file.originalname);
+    const filename = `${file.fieldname}-${Date.now()}-${Math.round(
+      Math.random() * 1e9
+    )}${ext}`;
+
+    const s3Key = `${folder}/${filename}`;
+    console.log(`🚀 Uploading to S3: ${s3Key}`);
+
+    // Store the CloudFront URL in the file object for later use
+    file.cloudFrontUrl = getCloudFrontUrl(s3Key);
+
+    cb(null, s3Key);
+  },
+  contentType: multerS3.AUTO_CONTENT_TYPE, // Automatically set content type
+  metadata: function (req, file, cb) {
+    cb(null, {
+      fieldName: file.fieldname,
+      originalName: file.originalname,
+      uploadDate: new Date().toISOString(),
+    });
   },
 });
 
