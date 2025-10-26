@@ -49,7 +49,7 @@ app.use((req, res, next) => {
 app.use("/api/images", express.static(path.join(__dirname, "../images")));
 
 // Serve assets folder (logo, etc.)
-app.use("/assets", express.static(path.join(__dirname, "assets")));
+app.use("/assets", express.static(path.join(__dirname, "../assets")));
 
 // Routes
 app.use("/api/auth", auth);
