@@ -1,6 +1,5 @@
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/admin.model");
-const SessionToken = require("../../models/sessionToken.model");
 const AppError = require("../../errors/appError");
 
 // Admin authentication middleware
@@ -32,19 +31,6 @@ const adminAuth = async (req, res, next) => {
       return next(new AppError("Access denied. Admin privileges required", 403));
     }
 
-    // Check session validity
-    const session = await SessionToken.findOne({
-      userId: decoded._id,
-      authToken: token,
-      userType: "admin",
-      revoked: false,
-      expiresAt: { $gt: new Date() },
-    });
-
-    if (!session) {
-      return next(new AppError("Session invalid or expired", 401));
-    }
-
     // Verify admin exists and is active
     const admin = await Admin.findById(decoded._id);
     if (!admin) {
@@ -59,9 +45,9 @@ const adminAuth = async (req, res, next) => {
     req.admin = {
       _id: admin._id,
       email: admin.email,
+      fullName: admin.fullName,
       role: admin.role,
     };
-    req.session = session;
 
     next();
   } catch (err) {
