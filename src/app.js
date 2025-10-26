@@ -24,10 +24,17 @@ const io = initializeSocket(server);
 // Make io available to routes/controllers
 app.set("io", io);
 
+// CORS Configuration - Allow frontend admin panel
 app.use(
   cors({
-    origin: ["*", process.env.CLIENT_URL],
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001", 
+      process.env.CLIENT_URL
+    ].filter(Boolean),
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 app.use(express.json());
@@ -64,6 +71,9 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/chat", require("./routes/chatRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/share", require("./routes/shareRoute")); // Share routes with Open Graph meta tags
+
+// Admin Routes
+app.use("/api/admin", require("./admin/routes/adminRoutes"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");
