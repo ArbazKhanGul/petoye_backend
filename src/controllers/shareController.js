@@ -11,7 +11,7 @@ exports.sharePost = async (req, res) => {
     const { postId } = req.params;
 
     const post = await Post.findById(postId)
-      .populate("author", "fullName profileImage")
+      .populate("userId", "fullName profileImage")
       .lean();
 
     if (!post) {
@@ -30,10 +30,10 @@ exports.sharePost = async (req, res) => {
     const description = post.content
       ? post.content.substring(0, 150) +
         (post.content.length > 150 ? "..." : "")
-      : "Check out this post on Petoye !";
+      : "Check out this post on Petoye!";
 
     const title = `${
-      post.author?.fullName || "Someone"
+      post.userId?.fullName || "Someone"
     } shared a post on Petoye`;
 
     const html = generatePostHTML(postId, title, description, imageUrl);
