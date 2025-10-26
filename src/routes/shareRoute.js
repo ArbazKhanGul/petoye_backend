@@ -1,6 +1,6 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const shareController = require('../controllers/shareController');
+const shareController = require("../controllers/shareController");
 
 /**
  * @swagger
@@ -26,7 +26,7 @@ const shareController = require('../controllers/shareController');
  *       404:
  *         description: Post not found
  */
-router.get('/post/:postId', shareController.sharePost);
+router.get("/post/:postId", shareController.sharePost);
 
 /**
  * @swagger
@@ -52,7 +52,7 @@ router.get('/post/:postId', shareController.sharePost);
  *       404:
  *         description: Pet listing not found
  */
-router.get('/pet/:petId', shareController.sharePetListing);
+router.get("/pet/:petId", shareController.sharePetListing);
 
 /**
  * @swagger
@@ -78,6 +78,6 @@ router.get('/pet/:petId', shareController.sharePetListing);
  *       404:
  *         description: User not found
  */
-router.get('/profile/:userId', shareController.shareUserProfile);
+router.get("/profile/:userId", shareController.shareUserProfile);
 
 module.exports = router;

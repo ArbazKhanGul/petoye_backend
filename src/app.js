@@ -48,6 +48,9 @@ app.use(express.urlencoded({ extended: true }));
 // Note: New uploads will be stored in S3 and served directly from S3 URLs
 app.use("/api/images", express.static(path.join(__dirname, "../images")));
 
+// Serve assets folder (logo, etc.)
+app.use("/assets", express.static(path.join(__dirname, "assets")));
+
 // Routes
 app.use("/api/auth", auth);
 app.use("/api/profile", profile);
