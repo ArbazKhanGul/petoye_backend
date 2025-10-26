@@ -30,7 +30,7 @@ exports.sharePost = async (req, res) => {
     const description = post.content
       ? post.content.substring(0, 150) +
         (post.content.length > 150 ? "..." : "")
-      : "Check out this post on Petoye!";
+      : "Check out this post on Petoye !";
 
     const title = `${
       post.author?.fullName || "Someone"
@@ -122,7 +122,7 @@ exports.shareUserProfile = async (req, res) => {
  */
 function generatePostHTML(postId, title, description, imageUrl) {
   const logoUrl = `${process.env.API_URL}/assets/petoye.png`;
-  
+
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -386,7 +386,7 @@ function generateProfileHTML(userId, title, description, imageUrl) {
  */
 function generateErrorHTML(message) {
   const logoUrl = `${process.env.API_URL}/assets/petoye.png`;
-  
+
   return `
 <!DOCTYPE html>
 <html lang="en">
