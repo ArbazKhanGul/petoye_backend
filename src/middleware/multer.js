@@ -53,8 +53,10 @@ const storage = multerS3({
     const s3Key = `${folder}/${filename}`;
     console.log(`🚀 Uploading to S3: ${s3Key}`);
 
-    // Store the CloudFront URL in the file object for later use
+    // Store additional metadata in the file object for later use
     file.cloudFrontUrl = getCloudFrontUrl(s3Key);
+    file.s3Key = s3Key;
+    file.generatedFilename = filename;
 
     cb(null, s3Key);
   },

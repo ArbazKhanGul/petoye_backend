@@ -13,6 +13,7 @@ const Notification = require("./notification.model");
 const Conversation = require("./conversation.model");
 const Message = require("./message.model");
 const PostView = require("./postView.model");
+const PetView = require("./petView.model");
 
 module.exports = {
   User,
@@ -30,4 +31,5 @@ module.exports = {
   Conversation,
   Message,
   PostView,
+  PetView,
 };

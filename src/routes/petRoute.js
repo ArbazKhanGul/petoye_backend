@@ -64,6 +64,171 @@ router.route("/me").get(authMiddleware, petController.getMyPetListings);
 
 /**
  * @swagger
+ * /api/pets/feed:
+ *   get:
+ *     summary: Get personalized pet feed with filters
+ *     tags: [Pets]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of pet listings per page
+ *       - in: query
+ *         name: skip
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of listings to skip
+ *       - in: query
+ *         name: f1Offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Fallback 1 offset (viewed listings)
+ *       - in: query
+ *         name: f2Offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Fallback 2 offset (global listings)
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: Filter by pet type (e.g., dog, cat, bird)
+ *       - in: query
+ *         name: gender
+ *         schema:
+ *           type: string
+ *           enum: [male, female, other]
+ *         description: Filter by gender
+ *       - in: query
+ *         name: minPrice
+ *         schema:
+ *           type: number
+ *         description: Minimum price filter
+ *       - in: query
+ *         name: maxPrice
+ *         schema:
+ *           type: number
+ *         description: Maximum price filter
+ *       - in: query
+ *         name: location
+ *         schema:
+ *           type: string
+ *         description: Filter by location (regex search)
+ *       - in: query
+ *         name: age
+ *         schema:
+ *           type: number
+ *         description: Exact age filter
+ *       - in: query
+ *         name: minAge
+ *         schema:
+ *           type: number
+ *         description: Minimum age filter
+ *       - in: query
+ *         name: maxAge
+ *         schema:
+ *           type: number
+ *         description: Maximum age filter
+ *       - in: query
+ *         name: weight
+ *         schema:
+ *           type: string
+ *         description: Weight filter
+ *       - in: query
+ *         name: isVaccinated
+ *         schema:
+ *           type: boolean
+ *         description: Filter by vaccination status
+ *       - in: query
+ *         name: personalityTraits
+ *         schema:
+ *           type: string
+ *         description: Filter by personality traits (comma-separated)
+ *       - in: query
+ *         name: favoriteActivities
+ *         schema:
+ *           type: string
+ *         description: Filter by favorite activities (comma-separated)
+ *     responses:
+ *       200:
+ *         description: Personalized pet feed fetched successfully with filters applied
+ *       401:
+ *         description: Unauthorized, authentication required
+ */
+router.route("/feed").get(authMiddleware, petController.getPetFeed);
+
+/**
+ * @swagger
+ * /api/pets/mark-viewed:
+ *   post:
+ *     summary: Mark pet listings as viewed
+ *     tags: [Pets]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               petListingIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of pet listing IDs to mark as viewed
+ *     responses:
+ *       200:
+ *         description: Pet listings marked as viewed successfully
+ *       400:
+ *         description: Bad request, invalid input
+ *       401:
+ *         description: Unauthorized, authentication required
+ */
+router
+  .route("/mark-viewed")
+  .post(authMiddleware, petController.markPetListingsAsViewed);
+
+/**
+ * @swagger
+ * /api/pets/view-history:
+ *   get:
+ *     summary: Get user's pet view history
+ *     tags: [Pets]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: View history fetched successfully
+ *       401:
+ *         description: Unauthorized, authentication required
+ */
+router
+  .route("/view-history")
+  .get(authMiddleware, petController.getUserPetViewHistory);
+
+/**
+ * @swagger
  * /api/pets/user/{id}:
  *   get:
  *     summary: Get pet listings by user ID

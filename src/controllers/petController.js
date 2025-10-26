@@ -1,5 +1,6 @@
 const AppError = require("../errors/appError");
-const { PetListing, User } = require("../models");
+const { PetListing, User, Follow, PetView } = require("../models");
+const { Types } = require("mongoose");
 
 /**
  * Create a new pet listing
@@ -84,8 +85,19 @@ exports.createPetListing = async (req, res, next) => {
 
       // Process all media files with their types and thumbnails
       mediaFiles = mediaArr.map((file, index) => {
-        // For S3 storage, use the location URL provided by multer-s3
-        const mediaUrl = file.location || `/images/petlisting/${file.filename}`;
+        console.log(`🔍 Pet listing - Processing file ${index}:`, {
+          cloudFrontUrl: file.cloudFrontUrl,
+          location: file.location,
+          filename: file.filename,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+        });
+
+        // Priority: CloudFront URL > S3 location > local path (same as posts)
+        const mediaUrl =
+          file.cloudFrontUrl ||
+          file.location ||
+          `/images/petlisting/${file.filename}`;
 
         // Determine file type with multiple fallbacks
         let fileType;
@@ -110,7 +122,7 @@ exports.createPetListing = async (req, res, next) => {
         }
 
         console.log(
-          `Pet listing - File ${index}: Type determined as ${fileType}`
+          `Pet listing - File ${index}: Type determined as ${fileType}, URL: ${mediaUrl}`
         );
 
         // Create media object
@@ -121,7 +133,7 @@ exports.createPetListing = async (req, res, next) => {
           size: file.size,
         };
 
-        // If it's a video, add thumbnail
+        // If it's a video, add thumbnail (prioritize CloudFront for thumbnails too)
         if (fileType === "video" || fileType.startsWith("video/")) {
           console.log(`Pet listing - Processing video at index ${index}`);
 
@@ -130,9 +142,11 @@ exports.createPetListing = async (req, res, next) => {
             console.log(
               `Pet listing - Using explicit thumbnail mapping for video ${index}`
             );
+            const thumbFile = thumbnailMapping[index];
             mediaObject.thumbnail =
-              thumbnailMapping[index].location ||
-              `/images/petlisting/${thumbnailMapping[index].filename}`;
+              thumbFile.cloudFrontUrl ||
+              thumbFile.location ||
+              `/images/petlisting/${thumbFile.filename}`;
             console.log(
               `Pet listing - Thumbnail path set: ${mediaObject.thumbnail}`
             );
@@ -145,7 +159,9 @@ exports.createPetListing = async (req, res, next) => {
             // Use the next available thumbnail
             const thumbFile = thumbArr.shift();
             mediaObject.thumbnail =
-              thumbFile.location || `/images/petlisting/${thumbFile.filename}`;
+              thumbFile.cloudFrontUrl ||
+              thumbFile.location ||
+              `/images/petlisting/${thumbFile.filename}`;
             console.log(
               `Pet listing - Fallback thumbnail path set: ${mediaObject.thumbnail}`
             );
@@ -405,8 +421,19 @@ exports.updatePetListing = async (req, res, next) => {
 
       // Process all media files with their types and thumbnails
       mediaFiles = mediaArr.map((file, index) => {
-        // For S3 storage, use the location URL provided by multer-s3
-        const mediaUrl = file.location || `/images/petlisting/${file.filename}`;
+        console.log(`🔍 Pet Update - Processing file ${index}:`, {
+          cloudFrontUrl: file.cloudFrontUrl,
+          location: file.location,
+          filename: file.filename,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+        });
+
+        // Priority: CloudFront URL > S3 location > local path (same as posts)
+        const mediaUrl =
+          file.cloudFrontUrl ||
+          file.location ||
+          `/images/petlisting/${file.filename}`;
 
         // Determine file type with multiple fallbacks
         let fileType;
@@ -431,7 +458,7 @@ exports.updatePetListing = async (req, res, next) => {
         }
 
         console.log(
-          `Pet Update - File ${index}: Type determined as ${fileType}`
+          `Pet Update - File ${index}: Type determined as ${fileType}, URL: ${mediaUrl}`
         );
 
         const mediaObject = {
@@ -441,16 +468,18 @@ exports.updatePetListing = async (req, res, next) => {
           size: file.size,
         };
 
-        // If it's a video, add thumbnail
+        // If it's a video, add thumbnail (prioritize CloudFront for thumbnails too)
         if (fileType === "video") {
           // Check explicit mapping first (our new method)
           if (thumbnailMapping[index]) {
             console.log(
               `Pet Update - Using explicit thumbnail mapping for video ${index}`
             );
+            const thumbFile = thumbnailMapping[index];
             mediaObject.thumbnail =
-              thumbnailMapping[index].location ||
-              `/images/petlisting/${thumbnailMapping[index].filename}`;
+              thumbFile.cloudFrontUrl ||
+              thumbFile.location ||
+              `/images/petlisting/${thumbFile.filename}`;
             console.log(
               `Pet Update - Thumbnail path set: ${mediaObject.thumbnail}`
             );
@@ -463,7 +492,12 @@ exports.updatePetListing = async (req, res, next) => {
             // Use the next available thumbnail
             const thumbFile = thumbArr.shift();
             mediaObject.thumbnail =
-              thumbFile.location || `/images/petlisting/${thumbFile.filename}`;
+              thumbFile.cloudFrontUrl ||
+              thumbFile.location ||
+              `/images/petlisting/${thumbFile.filename}`;
+            console.log(
+              `Pet Update - Fallback thumbnail path set: ${mediaObject.thumbnail}`
+            );
           } else {
             console.log(
               `Pet Update - No thumbnail available for video ${index}`
@@ -657,5 +691,634 @@ exports.getUserPetListings = async (req, res, next) => {
   } catch (error) {
     console.error("Error getting user pet listings:", error);
     return next(new AppError("Failed to get user pet listings", 500));
+  }
+};
+
+/**
+ * Personalized pet feed (similar to post feed algorithm)
+ * - Prioritizes pets from followed users
+ * - Excludes viewed pets
+ * - Uses denormalized viewsCount/interestsCount
+ * - Per-facet $skip then $limit (no global skip after merge)
+ * - Deterministic ordering (no $rand) → stable pagination
+ * - Fallback #1 (viewed) and #2 (global) support offsets
+ * - Supports filters: type, gender, price, location, age, weight, isVaccinated, personalityTraits, favoriteActivities
+ * @route GET /api/pets/feed?limit=10&skip=0&f1Offset=0&f2Offset=0&type=dog&gender=male&minPrice=100&maxPrice=1000
+ */
+exports.getPetFeed = async (req, res, next) => {
+  try {
+    // ---- Params & tunables ----
+    const userId = new Types.ObjectId(String(req.user._id));
+    const limit = Math.max(1, parseInt(req.query.limit) || 10);
+
+    // fresh pagination via per-facet skip
+    const rawSkip = parseInt(req.query.skip);
+    const skip = Number.isFinite(rawSkip) && rawSkip > 0 ? rawSkip : 0;
+
+    // fallback offsets (continue across requests after fresh is exhausted)
+    const f1Offset = Math.max(0, parseInt(req.query.f1Offset) || 0);
+    const f2Offset = Math.max(0, parseInt(req.query.f2Offset) || 0);
+    const FOLLOWER_RATIO = 1; // follower content priority
+    const WINDOW_DAYS = 30; // consider recent listings only (pets stay longer than posts)
+    const VIEWED_NIN_CAP = 2000; // cap exclusion list for $nin
+    const windowStart = new Date(
+      Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000
+    );
+
+    // 1) Quotas per page
+    const followerQuota = Math.ceil(limit * FOLLOWER_RATIO);
+
+    // 2) Per-facet skips (proportional to overall skip)
+    const followerSkip = skip;
+
+    // ---- Build filter object from query params ----
+    const additionalFilters = {};
+
+    // Optional type filter (dog, cat, bird, etc.)
+    if (req.query.type) {
+      additionalFilters.type = req.query.type;
+    }
+
+    // Optional gender filter
+    if (req.query.gender) {
+      additionalFilters.gender = req.query.gender;
+    }
+
+    // Optional price range filter
+    if (req.query.minPrice || req.query.maxPrice) {
+      additionalFilters.price = {};
+      if (req.query.minPrice)
+        additionalFilters.price.$gte = Number(req.query.minPrice);
+      if (req.query.maxPrice)
+        additionalFilters.price.$lte = Number(req.query.maxPrice);
+    }
+
+    // Optional location filter (regex search)
+    if (req.query.location) {
+      additionalFilters.location = {
+        $regex: req.query.location,
+        $options: "i",
+      };
+    }
+
+    // Optional age filter (exact or range)
+    if (req.query.age) {
+      additionalFilters.age = Number(req.query.age);
+    } else {
+      if (req.query.minAge || req.query.maxAge) {
+        additionalFilters.age = {};
+        if (req.query.minAge)
+          additionalFilters.age.$gte = Number(req.query.minAge);
+        if (req.query.maxAge)
+          additionalFilters.age.$lte = Number(req.query.maxAge);
+      }
+    }
+
+    // Optional weight filter
+    if (req.query.weight) {
+      additionalFilters.weight = req.query.weight;
+    }
+
+    // Optional isVaccinated filter
+    if (req.query.isVaccinated !== undefined) {
+      additionalFilters.isVaccinated = req.query.isVaccinated === "true";
+    }
+
+    // Optional personalityTraits filter (array, match any)
+    if (req.query.personalityTraits) {
+      const traits = Array.isArray(req.query.personalityTraits)
+        ? req.query.personalityTraits
+        : req.query.personalityTraits.split(",");
+      additionalFilters.personalityTraits = { $in: traits };
+    }
+
+    // Optional favoriteActivities filter (array, match any)
+    if (req.query.favoriteActivities) {
+      const favs = Array.isArray(req.query.favoriteActivities)
+        ? req.query.favoriteActivities
+        : req.query.favoriteActivities.split(",");
+      additionalFilters.favoriteActivities = { $in: favs };
+    }
+
+    console.log("🐾 ~ Pet feed filters applied:", additionalFilters);
+
+    // ---- Parallel user context ----
+    const [viewedRaw, follows] = await Promise.all([
+      PetView.getUserViewedPets(userId, 14), // array of PetListing _ids seen recently
+      Follow.find({ follower: userId }).select("following"),
+    ]);
+
+    // ---- Cast ids to ObjectId ----
+    const viewedPetIds = (viewedRaw || [])
+      .map((id) => new Types.ObjectId(String(id)))
+      .slice(0, VIEWED_NIN_CAP);
+
+    const followingIds = (follows || []).map(
+      (f) => new Types.ObjectId(String(f.following))
+    );
+
+    // Include current user's own listings in the feed
+    followingIds.push(userId);
+
+    // ---- Index-friendly base filter (reused in facets) ----
+    const baseMatch = {
+      status: "active", // Only show active pet listings
+      _id: { $nin: viewedPetIds },
+      ...additionalFilters, // Apply user filters
+    };
+
+    // ---- Faceted ranking: follower vs discovery (per-facet skip/limit) ----
+    const facetStage = {
+      $facet: {
+        follower: [
+          { $match: { ...baseMatch, owner: { $in: followingIds } } },
+          {
+            $set: {
+              viewsCount: { $ifNull: ["$viewsCount", 0] },
+              interestsCount: { $ifNull: ["$interestsCount", 0] },
+            },
+          },
+          {
+            $addFields: {
+              recencyScore: {
+                $max: [
+                  0,
+                  {
+                    $subtract: [
+                      300, // Higher base for pets since they stay relevant longer
+                      {
+                        $divide: [
+                          { $subtract: [new Date(), "$createdAt"] },
+                          3600000,
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+              engagementScore: {
+                $add: [
+                  { $multiply: ["$viewsCount", 2] },
+                  { $multiply: ["$interestsCount", 5] },
+                ],
+              },
+              finalScore: {
+                $add: [2000, 500, "$recencyScore", "$engagementScore"],
+              },
+              isFollowerListing: true,
+              isFresh: true,
+            },
+          },
+          { $sort: { finalScore: -1, createdAt: -1, _id: -1 } },
+          ...(followerSkip ? [{ $skip: followerSkip }] : []),
+          { $limit: Math.max(0, followerQuota) },
+
+          // Enrich with owner details
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "ownerDetails",
+              pipeline: [
+                {
+                  $project: { fullName: 1, profileImage: 1, country: 1 },
+                },
+              ],
+            },
+          },
+          {
+            $set: {
+              ownerDetails: {
+                $ifNull: [{ $arrayElemAt: ["$ownerDetails", 0] }, null],
+              },
+            },
+          },
+
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              gender: 1,
+              price: 1,
+              currencyCode: 1,
+              currencySymbol: 1,
+              description: 1,
+              location: 1,
+              type: 1,
+              age: 1,
+              weight: 1,
+              isVaccinated: 1,
+              personalityTraits: 1,
+              favoriteActivities: 1,
+              mediaFiles: 1,
+              status: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              ownerId: "$owner",
+              ownerDetails: 1,
+              viewsCount: 1,
+              interestsCount: 1,
+              isFollowerListing: 1,
+              isFresh: 1,
+            },
+          },
+        ],
+      },
+    };
+
+    // ---- Get follower listings directly ----
+    const freshListings = await PetListing.aggregate(
+      [
+        { $match: baseMatch },
+        facetStage,
+        { $project: { follower: 1 } },
+        { $unwind: "$follower" },
+        { $replaceRoot: { newRoot: "$follower" } },
+      ],
+      { allowDiskUse: true }
+    );
+
+    let finalListings = freshListings;
+
+    // For fallbacks, exclude already chosen fresh IDs
+    const excludeIdsSet = new Set(finalListings.map((p) => String(p._id)));
+    console.log("🐾 ~ finalListings: before fallback 1", finalListings.length);
+
+    // ---------------- Fallback #1: global (still short) ----------------
+    let globalFallback = [];
+    if (finalListings.length < limit) {
+      const need = limit - finalListings.length;
+
+      // Convert all existing listing IDs to ObjectId for exclusion
+      const allExistingIds = [
+        ...Array.from(excludeIdsSet).map((id) => new Types.ObjectId(id)),
+        ...viewedPetIds,
+      ];
+
+      globalFallback = await PetListing.aggregate(
+        [
+          {
+            $match: {
+              owner: { $nin: followingIds }, // Exclude listings from followed users
+              status: "active",
+              _id: {
+                $nin: allExistingIds,
+              },
+              ...additionalFilters, // Apply user filters to global fallback
+            },
+          },
+          {
+            $set: {
+              viewsCount: { $ifNull: ["$viewsCount", 0] },
+              interestsCount: { $ifNull: ["$interestsCount", 0] },
+            },
+          },
+          // Deterministic ranking for cold-start fill
+          {
+            $addFields: {
+              popScore: {
+                $add: ["$viewsCount", { $multiply: ["$interestsCount", 3] }],
+              },
+              ageHrs: {
+                $divide: [{ $subtract: [new Date(), "$createdAt"] }, 3600000],
+              },
+              jitter: {
+                $mod: [
+                  {
+                    $convert: {
+                      input: "$_id",
+                      to: "long",
+                      onError: 0,
+                    },
+                  },
+                  25,
+                ],
+              },
+              finalScore: {
+                $add: [
+                  { $min: ["$popScore", 200] },
+                  {
+                    $subtract: [150, { $min: [{ $floor: "$ageHrs" }, 150] }],
+                  },
+                  "$jitter",
+                ],
+              },
+              isFollowerListing: { $in: ["$owner", followingIds] },
+              isFresh: true,
+            },
+          },
+          { $sort: { finalScore: -1, createdAt: -1, _id: -1 } },
+          ...(f2Offset ? [{ $skip: f2Offset }] : []),
+          { $limit: need },
+
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "ownerDetails",
+              pipeline: [
+                { $project: { fullName: 1, profileImage: 1, country: 1 } },
+              ],
+            },
+          },
+          {
+            $set: {
+              ownerDetails: {
+                $ifNull: [{ $arrayElemAt: ["$ownerDetails", 0] }, null],
+              },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              gender: 1,
+              price: 1,
+              currencyCode: 1,
+              currencySymbol: 1,
+              description: 1,
+              location: 1,
+              type: 1,
+              age: 1,
+              weight: 1,
+              isVaccinated: 1,
+              personalityTraits: 1,
+              favoriteActivities: 1,
+              mediaFiles: 1,
+              status: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              ownerId: "$owner",
+              ownerDetails: 1,
+              viewsCount: 1,
+              interestsCount: 1,
+              isFollowerListing: 1,
+              isFresh: 1,
+            },
+          },
+        ],
+        { allowDiskUse: true }
+      );
+
+      finalListings = [...finalListings, ...globalFallback];
+      globalFallback = globalFallback || [];
+    }
+
+    console.log("🐾 ~ finalListings: before fallback 2", finalListings.length);
+
+    // ---------------- Fallback #2: previously viewed (not fresh) ----------------
+    let viewedFallback = [];
+    if (finalListings.length < limit && viewedPetIds.length > 0) {
+      const need = limit - finalListings.length;
+
+      // Exclude fresh and global fallback IDs
+      finalListings.forEach((listing) =>
+        excludeIdsSet.add(String(listing._id))
+      );
+      const alreadyChosenIds = Array.from(excludeIdsSet).map(
+        (id) => new Types.ObjectId(id)
+      );
+
+      viewedFallback = await PetListing.aggregate(
+        [
+          {
+            $match: {
+              status: "active",
+              _id: {
+                $in: viewedPetIds,
+                $nin: alreadyChosenIds,
+              },
+              ...additionalFilters, // Apply user filters to viewed fallback
+            },
+          },
+          {
+            $set: {
+              viewsCount: { $ifNull: ["$viewsCount", 0] },
+              interestsCount: { $ifNull: ["$interestsCount", 0] },
+            },
+          },
+          {
+            $addFields: {
+              popScore: {
+                $add: ["$viewsCount", { $multiply: ["$interestsCount", 3] }],
+              },
+              ageHrs: {
+                $divide: [{ $subtract: [new Date(), "$createdAt"] }, 3600000],
+              },
+              jitter: {
+                $mod: [
+                  {
+                    $convert: {
+                      input: "$_id",
+                      to: "long",
+                      onError: 0,
+                    },
+                  },
+                  25,
+                ],
+              },
+              finalScore: {
+                $add: [
+                  { $min: ["$popScore", 150] },
+                  {
+                    $subtract: [100, { $min: [{ $floor: "$ageHrs" }, 100] }],
+                  },
+                  "$jitter",
+                ],
+              },
+              isFollowerListing: { $in: ["$owner", followingIds] },
+              isFresh: false,
+            },
+          },
+          { $sort: { finalScore: -1, createdAt: -1, _id: -1 } },
+          ...(f1Offset ? [{ $skip: f1Offset }] : []),
+          { $limit: need },
+
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "ownerDetails",
+              pipeline: [
+                { $project: { fullName: 1, profileImage: 1, country: 1 } },
+              ],
+            },
+          },
+          {
+            $set: {
+              ownerDetails: {
+                $ifNull: [{ $arrayElemAt: ["$ownerDetails", 0] }, null],
+              },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              gender: 1,
+              price: 1,
+              currencyCode: 1,
+              currencySymbol: 1,
+              description: 1,
+              location: 1,
+              type: 1,
+              age: 1,
+              weight: 1,
+              isVaccinated: 1,
+              personalityTraits: 1,
+              favoriteActivities: 1,
+              mediaFiles: 1,
+              status: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              ownerId: "$owner",
+              ownerDetails: 1,
+              viewsCount: 1,
+              interestsCount: 1,
+              isFollowerListing: 1,
+              isFresh: 1,
+            },
+          },
+        ],
+        { allowDiskUse: true }
+      );
+
+      finalListings = [...finalListings, ...viewedFallback];
+      viewedFallback = viewedFallback || [];
+    }
+
+    console.log("🐾 ~ finalListings:", finalListings.length);
+
+    // Track actual fresh listings consumed for accurate pagination
+    const freshListingsConsumed = freshListings.length;
+
+    // ---- Response ----
+    res.status(200).json({
+      success: true,
+      data: {
+        petListings: finalListings.slice(0, limit),
+        pagination: {
+          page: 1,
+          limit,
+          skip,
+          hasNextPage: finalListings.length === limit,
+          hasPrevPage: skip > 0,
+          freshListingsConsumed,
+          f1Returned: (viewedFallback || []).length,
+          f2Returned: (globalFallback || []).length,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("🚨 Pet feed generation error:", error);
+    next(error);
+  }
+};
+
+/**
+ * Mark pet listings as viewed (for tracking what user has seen)
+ * @route POST /api/pets/mark-viewed
+ */
+exports.markPetListingsAsViewed = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { petListingIds } = req.body;
+    console.log("🐾 ~ petListingIds: viewed", petListingIds);
+
+    if (
+      !petListingIds ||
+      !Array.isArray(petListingIds) ||
+      petListingIds.length === 0
+    ) {
+      return next(new AppError("petListingIds array is required", 400));
+    }
+
+    const results = [];
+
+    // Mark each pet listing as viewed
+    for (const petListingId of petListingIds) {
+      try {
+        const view = await PetView.markAsViewed(userId, petListingId);
+
+        // Optionally increment viewsCount on the pet listing
+        await PetListing.findByIdAndUpdate(petListingId, {
+          $inc: { viewsCount: 1 },
+        });
+
+        results.push({
+          petListingId,
+          success: true,
+          viewId: view._id,
+        });
+      } catch (error) {
+        console.error(
+          `Error marking pet listing ${petListingId} as viewed:`,
+          error
+        );
+        results.push({
+          petListingId,
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Pet listings marked as viewed",
+      data: {
+        results,
+        successCount: results.filter((r) => r.success).length,
+        failureCount: results.filter((r) => !r.success).length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get user's view history for pet listings (for analytics/debugging)
+ * @route GET /api/pets/view-history
+ */
+exports.getUserPetViewHistory = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const totalViews = await PetView.countDocuments({ user: userId });
+    const viewHistory = await PetView.find({ user: userId })
+      .sort({ viewedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "petListing",
+        select: "name type price mediaFiles createdAt owner",
+        populate: {
+          path: "owner",
+          select: "fullName profileImage",
+        },
+      })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        viewHistory,
+        pagination: {
+          page,
+          limit,
+          totalPages: Math.ceil(totalViews / limit),
+          totalResults: totalViews,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
   }
 };

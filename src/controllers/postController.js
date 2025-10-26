@@ -1025,27 +1025,60 @@ exports.updatePost = async (req, res, next) => {
       }
 
       if (mediaPath) {
-        const filePath = path.join(
-          __dirname,
-          "../../",
-          mediaPath.replace(/^\//, "")
-        );
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log("Deleted old media file:", filePath);
+        // Check if it's an S3/CloudFront URL (don't try to delete these locally)
+        const isS3OrCloudFront =
+          mediaPath.startsWith("http") ||
+          mediaPath.includes("amazonaws.com") ||
+          mediaPath.includes("cloudfront.net") ||
+          (process.env.CLOUDFRONT_DOMAIN_NAME &&
+            mediaPath.includes(process.env.CLOUDFRONT_DOMAIN_NAME));
+
+        if (isS3OrCloudFront) {
+          console.log(
+            "🗑️ Skipping S3/CloudFront file deletion (handled by S3 lifecycle):",
+            mediaPath
+          );
+          // TODO: Implement S3 file deletion if needed
+          // For now, we let S3 lifecycle policies handle cleanup
+        } else {
+          // Handle local files
+          const filePath = path.join(
+            __dirname,
+            "../../",
+            mediaPath.replace(/^\//, "")
+          );
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log("🗑️ Deleted local media file:", filePath);
+          }
         }
       }
 
       // Also clean up thumbnail if it exists
       if (mediaFile.thumbnail) {
-        const thumbPath = path.join(
-          __dirname,
-          "../../",
-          mediaFile.thumbnail.replace(/^\//, "")
-        );
-        if (fs.existsSync(thumbPath)) {
-          fs.unlinkSync(thumbPath);
-          console.log("Deleted old thumbnail:", thumbPath);
+        const thumbnailPath = mediaFile.thumbnail;
+        const isThumbnailS3 =
+          thumbnailPath.startsWith("http") ||
+          thumbnailPath.includes("amazonaws.com") ||
+          thumbnailPath.includes("cloudfront.net") ||
+          (process.env.CLOUDFRONT_DOMAIN_NAME &&
+            thumbnailPath.includes(process.env.CLOUDFRONT_DOMAIN_NAME));
+
+        if (isThumbnailS3) {
+          console.log(
+            "🗑️ Skipping S3/CloudFront thumbnail deletion:",
+            thumbnailPath
+          );
+        } else {
+          const thumbPath = path.join(
+            __dirname,
+            "../../",
+            thumbnailPath.replace(/^\//, "")
+          );
+          if (fs.existsSync(thumbPath)) {
+            fs.unlinkSync(thumbPath);
+            console.log("🗑️ Deleted local thumbnail:", thumbPath);
+          }
         }
       }
     });
@@ -1111,12 +1144,23 @@ exports.updatePost = async (req, res, next) => {
         }
       }
 
-      // Process new media files
+      // Process new media files (match createPost logic exactly)
       const newMediaFiles = mediaArr.map((file, index) => {
-        // For S3 storage, use the location URL provided by multer-s3
-        const mediaUrl =
-          file.location || `/images/posts/${path.basename(file.path)}`;
+        console.log(`🔍 Processing new file ${index}:`, {
+          cloudFrontUrl: file.cloudFrontUrl,
+          location: file.location,
+          path: file.path,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+        });
 
+        // Priority: CloudFront URL > S3 location > local path (same as createPost)
+        const mediaUrl =
+          file.cloudFrontUrl ||
+          file.location ||
+          `/images/posts/${path.basename(file.path)}`;
+
+        // Determine file type (same logic as createPost)
         let fileType;
         if (
           parsedMediaTypes &&
@@ -1137,17 +1181,30 @@ exports.updatePost = async (req, res, next) => {
           type: fileType,
         };
 
-        // Add thumbnail for videos
+        console.log(`🔍 Media object for file ${index}:`, mediaObject);
+
+        // Add thumbnail for videos (prioritize CloudFront for thumbnails too)
         if (fileType === "video" || fileType.startsWith("video/")) {
           if (thumbnailMapping[index]) {
+            const thumbFile = thumbnailMapping[index];
             mediaObject.thumbnail =
-              thumbnailMapping[index].location ||
-              `/images/posts/${path.basename(thumbnailMapping[index].path)}`;
+              thumbFile.cloudFrontUrl ||
+              thumbFile.location ||
+              `/images/posts/${path.basename(thumbFile.path)}`;
+            console.log(
+              `🔍 Added mapped thumbnail for video ${index}:`,
+              mediaObject.thumbnail
+            );
           } else if (thumbArr.length > 0) {
             const thumbFile = thumbArr.shift();
             mediaObject.thumbnail =
+              thumbFile.cloudFrontUrl ||
               thumbFile.location ||
               `/images/posts/${path.basename(thumbFile.path)}`;
+            console.log(
+              `🔍 Added auto thumbnail for video ${index}:`,
+              mediaObject.thumbnail
+            );
           }
         }
 
@@ -1193,16 +1250,19 @@ exports.updatePost = async (req, res, next) => {
       post: updatedPost,
     });
   } catch (error) {
-    // Cleanup uploaded files on error
+    // Cleanup uploaded files on error (only for local files, not S3)
     if (req.files) {
       Object.values(req.files)
         .flat()
         .forEach((file) => {
-          if (fs.existsSync(file.path)) {
+          // Only cleanup local files, S3 files are handled by multer-s3
+          if (file.path && !file.location && fs.existsSync(file.path)) {
             fs.unlinkSync(file.path);
+            console.log("🗑️ Cleaned up local file on error:", file.path);
           }
         });
     }
+    console.error("🚨 UpdatePost error:", error);
     next(error);
   }
 };

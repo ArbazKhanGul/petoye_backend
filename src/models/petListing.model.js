@@ -97,6 +97,17 @@ const petListingSchema = new Schema(
       ref: "User",
       required: true,
     },
+    // Denormalized counts for feed algorithm
+    viewsCount: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+    interestsCount: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
