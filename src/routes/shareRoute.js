@@ -80,4 +80,30 @@ router.get("/pet/:petId", shareController.sharePetListing);
  */
 router.get("/profile/:userId", shareController.shareUserProfile);
 
+/**
+ * @swagger
+ * /api/share/referral/{referralCode}:
+ *   get:
+ *     summary: Share referral/invite link with Open Graph meta tags
+ *     description: Returns HTML page with Open Graph tags and handles app redirect or signup
+ *     tags: [Share]
+ *     parameters:
+ *       - in: path
+ *         name: referralCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Referral code
+ *     responses:
+ *       200:
+ *         description: HTML page with Open Graph meta tags
+ *         content:
+ *           text/html:
+ *             schema:
+ *               type: string
+ *       404:
+ *         description: Referral code not found
+ */
+router.get("/referral/:referralCode", shareController.shareReferral);
+
 module.exports = router;
