@@ -8,6 +8,7 @@ const {
   forgotPasswordVerifyOtpSchema,
   forgotPasswordResetSchema,
   updatePasswordSchema,
+  deleteAccountSchema,
 } = require("../validation/userValidation");
 const authController = require("../controllers/authController");
 const upload = require("../middleware/multer");
@@ -481,6 +482,42 @@ router
  *       404:
  *         description: User not found
  */
-router.route("/profile").get(authMiddleware, authController.getProfile);
+router.route("/profile").post(authMiddleware, authController.getProfile);
+
+/**
+ * @swagger
+ * /api/auth/delete-account:
+ *   delete:
+ *     summary: Delete user account
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - password
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: Current password to confirm account deletion
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *       401:
+ *         description: Invalid password or not authorized
+ *       404:
+ *         description: User not found
+ */
+router
+  .route("/delete-account")
+  .delete(
+    authMiddleware,
+    validate(deleteAccountSchema),
+    authController.deleteAccount
+  );
 
 module.exports = router;

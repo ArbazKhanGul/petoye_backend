@@ -16,6 +16,10 @@ exports.getProfile = async (req, res, next) => {
       return next(new AppError("User not found", 404));
     }
 
+    if (user.isDeleted) {
+      return next(new AppError("This account has been deleted", 410));
+    }
+
     res.status(200).json({
       success: true,
       data: user,
@@ -143,6 +147,7 @@ exports.checkUsernameAvailability = async (req, res, next) => {
     const existingUser = await User.findOne({
       username: username.toLowerCase(),
       _id: { $ne: currentUserId },
+      isDeleted: { $ne: true }, // Exclude deleted users
     });
 
     const isAvailable = !existingUser;
@@ -194,6 +199,7 @@ exports.searchUsers = async (req, res, next) => {
       $and: [
         { _id: { $ne: currentUserId } }, // Exclude current user
         { emailVerify: true }, // Only verified users
+        { isDeleted: { $ne: true } }, // Exclude deleted users
         {
           $or: [
             { username: { $regex: searchQuery, $options: "i" } },

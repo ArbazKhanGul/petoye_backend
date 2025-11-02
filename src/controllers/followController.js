@@ -261,12 +261,13 @@ exports.getFollowers = async (req, res, next) => {
       return next(new AppError("User not found", 404));
     }
 
-    // Get followers using the Follow collection with pagination
+    // Get followers using the Follow collection with pagination, excluding deleted users
     const followers = await Follow.find({ following: userId })
-      .populate(
-        "follower",
-        "fullName profileImage email followersCount followingCount"
-      )
+      .populate({
+        path: "follower",
+        match: { isDeleted: { $ne: true } }, // Only include non-deleted users
+        select: "fullName profileImage email followersCount followingCount",
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -275,8 +276,10 @@ exports.getFollowers = async (req, res, next) => {
     const totalFollowers = await Follow.countDocuments({ following: userId });
     const totalPages = Math.ceil(totalFollowers / limit);
 
-    // Extract follower user data
-    const followerUsers = followers.map((follow) => follow.follower);
+    // Extract follower user data and filter out deleted users (which are populated as null)
+    const followerUsers = followers
+      .map((follow) => follow.follower)
+      .filter((user) => user !== null);
 
     res.status(200).json({
       success: true,
@@ -314,12 +317,13 @@ exports.getFollowing = async (req, res, next) => {
       return next(new AppError("User not found", 404));
     }
 
-    // Get following using the Follow collection with pagination
+    // Get following using the Follow collection with pagination, excluding deleted users
     const following = await Follow.find({ follower: userId })
-      .populate(
-        "following",
-        "fullName profileImage email followersCount followingCount"
-      )
+      .populate({
+        path: "following",
+        match: { isDeleted: { $ne: true } }, // Only include non-deleted users
+        select: "fullName profileImage email followersCount followingCount",
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -328,8 +332,10 @@ exports.getFollowing = async (req, res, next) => {
     const totalFollowing = await Follow.countDocuments({ follower: userId });
     const totalPages = Math.ceil(totalFollowing / limit);
 
-    // Extract following user data
-    const followingUsers = following.map((follow) => follow.following);
+    // Extract following user data and filter out deleted users (which are populated as null)
+    const followingUsers = following
+      .map((follow) => follow.following)
+      .filter((user) => user !== null);
 
     res.status(200).json({
       success: true,
@@ -359,10 +365,15 @@ exports.getUserProfile = async (req, res, next) => {
     const userId = req.params.userId;
     const currentUserId = req.user ? req.user._id : null;
 
-    const user = await User.findById(userId).select("-password -refreshTokens");
+    const user = await User.findOne({
+      _id: userId,
+      isDeleted: { $ne: true }, // Don't show deleted users
+    }).select("-password -refreshTokens");
 
     if (!user) {
-      return next(new AppError("User not found", 404));
+      return next(
+        new AppError("User not found or account has been deleted", 404)
+      );
     }
 
     // Check if current user is following this user using Follow collection

@@ -14,6 +14,7 @@ const Conversation = require("./conversation.model");
 const Message = require("./message.model");
 const PostView = require("./postView.model");
 const PetView = require("./petView.model");
+const AppVersion = require("./appVersion.model");
 
 module.exports = {
   User,
@@ -32,4 +33,5 @@ module.exports = {
   Message,
   PostView,
   PetView,
+  AppVersion,
 };
