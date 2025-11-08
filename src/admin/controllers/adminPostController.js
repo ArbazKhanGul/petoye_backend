@@ -39,14 +39,43 @@ exports.getAllPosts = async (req, res, next) => {
       .sort(sortOptions)
       .limit(parseInt(limit))
       .skip(skip)
-      .populate("userId", "fullName username profileImage email");
+      .populate("userId", "fullName username profileImage email")
+      .lean(); // Use lean() for better performance with large datasets
+
+    // Get engagement counts efficiently in batch
+    const postIds = posts.map(post => post._id);
+    const [likesData, commentsData] = await Promise.all([
+      Like.aggregate([
+        { $match: { post: { $in: postIds } } },
+        { $group: { _id: "$post", count: { $sum: 1 } } }
+      ]),
+      Comment.aggregate([
+        { $match: { post: { $in: postIds } } },
+        { $group: { _id: "$post", count: { $sum: 1 } } }
+      ])
+    ]);
+
+    // Create lookup maps for efficient data merging
+    const likesMap = Object.fromEntries(likesData.map(item => [item._id.toString(), item.count]));
+    const commentsMap = Object.fromEntries(commentsData.map(item => [item._id.toString(), item.count]));
+
+    // Enhance posts with engagement data
+    const enhancedPosts = posts.map(post => ({
+      ...post,
+      user: post.userId, // Rename for frontend consistency
+      likesCount: likesMap[post._id.toString()] || 0,
+      commentsCount: commentsMap[post._id.toString()] || 0,
+      sharesCount: post.shareCount || 0,
+      media: post.mediaFiles || [], // Rename for frontend consistency
+      hasMedia: post.mediaFiles && post.mediaFiles.length > 0
+    }));
 
     const total = await Post.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: {
-        posts,
+        posts: enhancedPosts,
         pagination: {
           total,
           page: parseInt(page),
