@@ -695,7 +695,8 @@ exports.googleLogin = async (req, res, next) => {
     const ticket = await googleClient.verifyIdToken({
       idToken,
       audience: [
-        process.env.GOOGLE_CLIENT_ID_ANDROID,
+        GOOGLE_CLIENT_ID_ANDROID,
+        process.env.GOOGLE_CLIENT_ID_ANDROID_PROD,
         process.env.GOOGLE_CLIENT_ID_IOS,
       ],
     });

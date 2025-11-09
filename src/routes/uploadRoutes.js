@@ -85,4 +85,7 @@ router.use(authMiddleware);
  */
 router.post("/chat-media", upload.single("chat"), uploadChatMedia);
 
+// Competition photo upload (accepts 'file' field name for compatibility)
+router.post("/competition-photo", upload.single("file"), uploadChatMedia);
+
 module.exports = router;

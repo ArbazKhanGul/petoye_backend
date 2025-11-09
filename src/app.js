@@ -64,6 +64,7 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/chat", require("./routes/chatRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/share", require("./routes/shareRoute")); // Share routes with Open Graph meta tags
+app.use("/api/competitions", require("./routes/competitionRoute")); // Competition routes
 
 app.get("/", (req, res) => {
   res.send("Welcome to the petoye backend API");

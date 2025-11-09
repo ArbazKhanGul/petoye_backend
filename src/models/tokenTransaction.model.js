@@ -7,7 +7,13 @@ const tokenTransactionSchema = new Schema(
     amount: { type: Number, required: true }, // positive for earn, negative for spend
     type: {
       type: String,
-      enum: ["like", "referral"],
+      enum: [
+        "like",
+        "referral",
+        "competition_entry",
+        "competition_refund",
+        "competition_prize",
+      ],
       required: true,
     },
     relatedId: { type: Schema.Types.ObjectId }, // e.g., postId for like, userId for referral, etc.

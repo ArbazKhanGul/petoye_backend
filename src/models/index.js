@@ -15,6 +15,9 @@ const Message = require("./message.model");
 const PostView = require("./postView.model");
 const PetView = require("./petView.model");
 const AppVersion = require("./appVersion.model");
+const Competition = require("./competition.model");
+const CompetitionEntry = require("./competitionEntry.model");
+const CompetitionVote = require("./competitionVote.model");
 
 module.exports = {
   User,
@@ -34,4 +37,7 @@ module.exports = {
   PostView,
   PetView,
   AppVersion,
+  Competition,
+  CompetitionEntry,
+  CompetitionVote,
 };
