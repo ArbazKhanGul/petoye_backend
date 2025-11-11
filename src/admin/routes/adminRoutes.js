@@ -10,6 +10,9 @@ const adminPetController = require("../controllers/adminPetController");
 const adminAnalyticsController = require("../controllers/adminAnalyticsController");
 const adminContentController = require("../controllers/adminContentController");
 
+// Import sub-admin routes
+const subAdminRoutes = require("./subAdminRoutes");
+
 // ==================== AUTH ROUTES ====================
 // Public routes (no auth required)
 router.post("/auth/login", adminAuthController.login);
@@ -20,6 +23,9 @@ router.post("/auth/logout", adminAuth, adminAuthController.logout);
 router.get("/auth/profile", adminAuth, adminAuthController.getProfile);
 router.put("/auth/profile", adminAuth, adminAuthController.updateProfile);
 router.put("/auth/change-password", adminAuth, adminAuthController.changePassword);
+
+// ==================== SUB-ADMIN MANAGEMENT ROUTES ====================
+router.use("/sub-admins", subAdminRoutes);
 
 // ==================== USER MANAGEMENT ROUTES ====================
 router.get("/users", adminAuth, adminUserController.getAllUsers);

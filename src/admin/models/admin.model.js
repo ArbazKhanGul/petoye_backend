@@ -23,8 +23,38 @@ const adminSchema = new Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "super_admin"],
+      enum: ["super_admin", "admin", "moderator", "viewer"],
       default: "admin",
+    },
+    permissions: {
+      users: {
+        view: { type: Boolean, default: true },
+        create: { type: Boolean, default: false },
+        edit: { type: Boolean, default: false },
+        delete: { type: Boolean, default: false },
+      },
+      posts: {
+        view: { type: Boolean, default: true },
+        create: { type: Boolean, default: false },
+        edit: { type: Boolean, default: false },
+        delete: { type: Boolean, default: false },
+      },
+      pets: {
+        view: { type: Boolean, default: true },
+        create: { type: Boolean, default: false },
+        edit: { type: Boolean, default: false },
+        delete: { type: Boolean, default: false },
+      },
+      admins: {
+        view: { type: Boolean, default: false },
+        create: { type: Boolean, default: false },
+        edit: { type: Boolean, default: false },
+        delete: { type: Boolean, default: false },
+      },
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Admin",
     },
     isActive: {
       type: Boolean,
@@ -62,6 +92,44 @@ adminSchema.pre("save", async function (next) {
     next(error);
   }
 });
+
+// Set default permissions based on role
+adminSchema.methods.setDefaultPermissions = function () {
+  switch (this.role) {
+    case "super_admin":
+      this.permissions = {
+        users: { view: true, create: true, edit: true, delete: true },
+        posts: { view: true, create: true, edit: true, delete: true },
+        pets: { view: true, create: true, edit: true, delete: true },
+        admins: { view: true, create: true, edit: true, delete: true },
+      };
+      break;
+    case "admin":
+      this.permissions = {
+        users: { view: true, create: false, edit: true, delete: false },
+        posts: { view: true, create: false, edit: true, delete: true },
+        pets: { view: true, create: false, edit: true, delete: true },
+        admins: { view: false, create: false, edit: false, delete: false },
+      };
+      break;
+    case "moderator":
+      this.permissions = {
+        users: { view: true, create: false, edit: false, delete: false },
+        posts: { view: true, create: false, edit: true, delete: false },
+        pets: { view: true, create: false, edit: true, delete: false },
+        admins: { view: false, create: false, edit: false, delete: false },
+      };
+      break;
+    case "viewer":
+      this.permissions = {
+        users: { view: true, create: false, edit: false, delete: false },
+        posts: { view: true, create: false, edit: false, delete: false },
+        pets: { view: true, create: false, edit: false, delete: false },
+        admins: { view: false, create: false, edit: false, delete: false },
+      };
+      break;
+  }
+};
 
 // Method to compare password
 adminSchema.methods.comparePassword = async function (candidatePassword) {
