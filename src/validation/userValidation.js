@@ -8,6 +8,12 @@ const ACCEPTED_IMAGE_TYPES = [
   "image/webp",
 ];
 
+const deleteAccountSchema = z.object({
+  password: z.string({
+    required_error: "Password is required to delete your account",
+  }),
+});
+
 const signupSchema = z.object({
   fullName: z
     .string({ required_error: "Full name is required" })
@@ -181,6 +187,7 @@ module.exports = {
   signupSchema,
   updateProfileSchema,
   addFcmTokenSchema,
+  deleteAccountSchema,
   forgotPasswordSendOtpSchema,
   forgotPasswordVerifyOtpSchema,
   forgotPasswordResetSchema,

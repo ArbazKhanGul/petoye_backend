@@ -35,7 +35,12 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      // required: true,
+      // Not required for Google-authenticated users
+    },
+    authProvider: {
+      type: String,
+      enum: ["email", "google"],
+      default: "email",
     },
     dateOfBirth: {
       type: Date,
@@ -94,6 +99,19 @@ const userSchema = new Schema(
       type: Number,
       default: 0,
       min: 0,
+    },
+    // Soft delete fields
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    canReregisterAt: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true }

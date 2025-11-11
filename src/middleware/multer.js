@@ -38,8 +38,15 @@ const storage = multerS3({
       folder = "posts";
     } else if (req.baseUrl === "/api/pets") {
       folder = "petlisting";
+    } else if (req.baseUrl === "/api/competitions") {
+      folder = "competition";
     } else if (req.baseUrl === "/api/upload") {
-      folder = "chat";
+      // Check specific path for competition photos
+      if (req.path === "/competition-photo") {
+        folder = "competition";
+      } else {
+        folder = "chat";
+      }
     } else if (req.baseUrl === "/api/profile" || req.baseUrl === "/api/auth") {
       folder = "profile";
     }
