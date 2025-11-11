@@ -13,6 +13,12 @@ const adminContentController = require("../controllers/adminContentController");
 // Import sub-admin routes
 const subAdminRoutes = require("./subAdminRoutes");
 
+// Import competition routes
+const competitionRoutes = require("./competitionRoutes");
+
+// Import app version routes
+const appVersionRoutes = require("./appVersionRoutes");
+
 // ==================== AUTH ROUTES ====================
 // Public routes (no auth required)
 router.post("/auth/login", adminAuthController.login);
@@ -27,7 +33,10 @@ router.put("/auth/change-password", adminAuth, adminAuthController.changePasswor
 // ==================== SUB-ADMIN MANAGEMENT ROUTES ====================
 router.use("/sub-admins", subAdminRoutes);
 
-// ==================== USER MANAGEMENT ROUTES ====================
+// ==================== COMPETITION MANAGEMENT ROUTES ====================
+router.use("/", competitionRoutes);
+
+// ==================== ANALYTICS ROUTES ====================
 router.get("/users", adminAuth, adminUserController.getAllUsers);
 router.get("/users/stats", adminAuth, adminUserController.getUserStats);
 router.get("/users/search", adminAuth, adminUserController.searchUsers);
@@ -90,5 +99,11 @@ router.delete("/follows/:followId", adminAuth, adminContentController.deleteFoll
 // ==================== LIKE MANAGEMENT ROUTES ====================
 router.get("/likes", adminAuth, adminContentController.getAllLikes);
 router.delete("/likes/:likeId", adminAuth, adminContentController.deleteLike);
+
+// ==================== COMPETITION MANAGEMENT ROUTES ====================
+router.use("/competitions", competitionRoutes);
+
+// ==================== APP VERSION MANAGEMENT ROUTES ====================
+router.use("/app-versions", appVersionRoutes);
 
 module.exports = router;
