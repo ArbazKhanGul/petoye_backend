@@ -3,13 +3,9 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const http = require("http");
-const { initializeSocket } = require("./socket");
-const errorMiddleware = require("./middleware/errorMiddleware");
-const auth = require("./routes/authRoute");
-const profile = require("./routes/profileRoute");
-const posts = require("./routes/postRoute");
-const postInteractions = require("./routes/postInteractionRoutes");
-const comments = require("./routes/commentRoutes");
+
+
+
 const setupSwagger = require("../swagger");
 require("./config/db");
 
@@ -18,11 +14,8 @@ const app = express();
 // Create HTTP server
 const server = http.createServer(app);
 
-// Initialize Socket.IO
-const io = initializeSocket(server);
 
-// Make io available to routes/controllers
-app.set("io", io);
+
 
 // CORS Configuration - Allow frontend admin panel
 app.use(
@@ -58,20 +51,7 @@ app.use("/api/images", express.static(path.join(__dirname, "../images")));
 // Serve assets folder (logo, etc.)
 app.use("/assets", express.static(path.join(__dirname, "../assets")));
 
-// Routes
-app.use("/api/auth", auth);
-app.use("/api/profile", profile);
-app.use("/api/posts", posts);
-app.use("/api/posts", postInteractions);
-app.use("/api/comments", comments);
-app.use("/api/pets", require("./routes/petRoute"));
-app.use("/api/follow", require("./routes/followRoute"));
-app.use("/api/coins", require("./routes/coinRoute"));
-app.use("/api/notifications", require("./routes/notificationRoutes"));
-app.use("/api/chat", require("./routes/chatRoutes"));
-app.use("/api/upload", require("./routes/uploadRoutes"));
-app.use("/api/share", require("./routes/shareRoute")); // Share routes with Open Graph meta tags
-app.use("/api/competitions", require("./routes/competitionRoute")); // Competition routes
+
 
 // Admin Routes
 app.use("/api/admin", require("./admin/routes/adminRoutes"));
@@ -82,10 +62,9 @@ app.get("/", (req, res) => {
 
 setupSwagger(app);
 
-//Error Handling
-app.use(errorMiddleware);
+
 
 server.listen(process.env.PORT, () => {
   console.log("🚀 Server listening on port " + process.env.PORT);
-  console.log("📱 Socket.IO ready for real-time communication");
+ 
 });
