@@ -11,6 +11,7 @@ const posts = require("./routes/postRoute");
 const postInteractions = require("./routes/postInteractionRoutes");
 const comments = require("./routes/commentRoutes");
 const setupSwagger = require("../swagger");
+const { initializeCompetitionJobs } = require("./jobs/competitionJobs");
 require("./config/db");
 
 const app = express();
@@ -34,15 +35,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Middleware to log all incoming requests
-app.use((req, res, next) => {
-  console.log("Incoming Request:", {
-    method: req.method,
-    url: req.url,
-    headers: req.headers,
-    body: req.body,
-  });
-  next(); // Pass control to the next middleware
-});
+// app.use((req, res, next) => {
+//   console.log("Incoming Request:", {
+//     method: req.method,
+//     url: req.url,
+//     headers: req.headers,
+//     body: req.body,
+//   });
+//   next(); // Pass control to the next middleware
+// });
 
 // Serve static files (keep for backwards compatibility with existing local files)
 // Note: New uploads will be stored in S3 and served directly from S3 URLs
@@ -78,4 +79,7 @@ app.use(errorMiddleware);
 server.listen(process.env.PORT, () => {
   console.log("🚀 Server listening on port " + process.env.PORT);
   console.log("📱 Socket.IO ready for real-time communication");
+
+  // Initialize competition cron jobs
+  initializeCompetitionJobs();
 });

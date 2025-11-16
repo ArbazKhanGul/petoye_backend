@@ -109,6 +109,7 @@ exports.getCompetitionDetails = async (req, res, next) => {
     const { competitionId } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
+    const votedOnly = req.query.votedOnly === "true";
     const skip = (page - 1) * limit;
 
     const competition = await Competition.findById(competitionId).lean();
@@ -116,10 +117,34 @@ exports.getCompetitionDetails = async (req, res, next) => {
       return next(new AppError("Competition not found", 404));
     }
 
+    // Get user's votes if authenticated (fetch once and reuse)
+    let userVotes = [];
+    let votedEntryIds = [];
+    if (req.user) {
+      userVotes = await CompetitionVote.find({
+        competitionId,
+        userId: req.user._id,
+      })
+        .select("entryId")
+        .lean();
+
+      votedEntryIds = userVotes.map((v) => v.entryId);
+    }
+    console.log("🚀 ~ userVotes:", userVotes);
+    console.log("🚀 ~ req.user._id:", req.user);
+
+    // Build filter for entries based on votedOnly parameter
+    let entryIdsFilter = {};
+    if (votedOnly && votedEntryIds.length > 0) {
+      // Only show entries that user has voted for
+      entryIdsFilter = { _id: { $in: votedEntryIds } };
+    }
+
     // Get entries with pagination
     const entries = await CompetitionEntry.find({
       competitionId,
       status: "active",
+      ...entryIdsFilter,
     })
       .sort({ votesCount: -1, createdAt: 1 }) // Sort by votes, then by submission time
       .skip(skip)
@@ -131,20 +156,11 @@ exports.getCompetitionDetails = async (req, res, next) => {
     const totalEntries = await CompetitionEntry.countDocuments({
       competitionId,
       status: "active",
+      ...entryIdsFilter,
     });
 
-    // Check if user has voted for each entry (if authenticated)
-    let userVotes = [];
-    if (req.user) {
-      userVotes = await CompetitionVote.find({
-        competitionId,
-        userId: req.user._id,
-      })
-        .select("entryId")
-        .lean();
-    }
-
-    const userVotedEntryIds = userVotes.map((v) => v.entryId.toString());
+    // Convert voted entry IDs to strings for comparison
+    const userVotedEntryIds = votedEntryIds.map((id) => id.toString());
 
     // Add hasVoted flag to each entry
     const entriesWithVoteStatus = entries.map((entry) => ({
@@ -311,7 +327,10 @@ exports.submitEntry = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: "Entry submitted successfully",
-      data: entry,
+      data: {
+        entry,
+        updatedTokenBalance: user.tokens, // Return updated token balance
+      },
     });
   } catch (error) {
     next(error);
@@ -393,6 +412,7 @@ exports.cancelEntry = async (req, res, next) => {
       message: "Entry cancelled and tokens refunded",
       data: {
         refundedAmount: entry.entryFeePaid,
+        updatedTokenBalance: user.tokens, // Return updated token balance
       },
     });
   } catch (error) {
@@ -603,6 +623,7 @@ exports.getLeaderboard = async (req, res, next) => {
 exports.getCompetitionsByStatus = async (req, res, next) => {
   try {
     const { status = "all", startDate, endDate } = req.query;
+    console.log("🚀 ~ status:", status);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;

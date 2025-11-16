@@ -26,7 +26,7 @@ async function createDailyCompetition() {
     startTime.setUTCHours(0, 0, 0, 0);
 
     const endTime = new Date(now);
-    endTime.setUTCHours(23, 59, 59, 999);
+    endTime.setUTCHours(23, 59, 0, 0); // Ends at 23:59:00 (same time as cron job)
 
     // Entry window: 1 hour before start (23:00 previous day) to 1 hour before end (22:59)
     const entryStartTime = new Date(startTime);
@@ -215,7 +215,7 @@ async function createTomorrowCompetition() {
     startTime.setUTCHours(0, 0, 0, 0);
 
     const endTime = new Date(tomorrow);
-    endTime.setUTCHours(23, 59, 59, 999);
+    endTime.setUTCHours(23, 59, 0, 0); // Ends at 23:59:00 (same time as cron job)
 
     // Entry window: Start 1 hour after creation, end 1 hour before competition starts
     const entryStartTime = new Date(); // Current time when competition is created
