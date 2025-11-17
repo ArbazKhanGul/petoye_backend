@@ -193,15 +193,109 @@ async function endCompetitionAndSelectWinners() {
   }
 }
 
+// /**
+//  * Create tomorrow's competition
+//  * Called by cron job at 01:00 UTC (allows users to enter for next day)
+//  */
+// async function createTomorrowCompetition() {
+//   try {
+//     const tomorrow = new Date();
+//     tomorrow.setDate(tomorrow.getDate() + 1);
+//     const dateString = tomorrow.toISOString().split("T")[0];
+
+//     // Check if competition already exists
+//     const existing = await Competition.findOne({ date: dateString });
+//     if (existing) {
+//       console.log(`Competition for ${dateString} already exists`);
+//       return existing;
+//     }
+
+//     // Set times for tomorrow
+//     const startTime = new Date(tomorrow);
+//     startTime.setUTCHours(0, 0, 0, 0);
+
+//     const endTime = new Date(tomorrow);
+//     endTime.setUTCHours(23, 59, 0, 0); // Ends at 23:59:00 (same time as cron job)
+
+//     // Entry window: Start 1 hour after creation, end 1 hour before competition starts
+//     const entryStartTime = new Date(); // Current time when competition is created
+//     entryStartTime.setHours(entryStartTime.getHours() + 1); // Start accepting entries 1 hour from now
+
+//     const entryEndTime = new Date(startTime); // Competition start time
+//     entryEndTime.setHours(entryEndTime.getHours() - 1); // Close entries 1 hour before competition starts
+
+//     // Create competition
+//     const competition = await Competition.create({
+//       date: dateString,
+//       status: "upcoming",
+//       entryFee: 10,
+//       prizePool: 0,
+//       startTime,
+//       endTime,
+//       entryStartTime,
+//       entryEndTime,
+//       totalEntries: 0,
+//       totalVotes: 0,
+//     });
+
+//     console.log(`✅ Created upcoming competition for ${dateString}`);
+//     return competition;
+//   } catch (error) {
+//     console.error("Error creating tomorrow's competition:", error);
+//     throw error;
+//   }
+// }
+
+// pakistnti time zone
+
+function pakistanDate(
+  year,
+  month,
+  day,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  ms = 0
+) {
+  // Create a date string in PKT (year-month-day hour:minute:second)
+  const localString =
+    `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(
+      2,
+      "0"
+    )} ` +
+    `${String(hour).padStart(2, "0")}:${String(minute).padStart(
+      2,
+      "0"
+    )}:${String(second).padStart(2, "0")}`;
+
+  // Convert PKT string into a real JS Date in UTC:
+  return new Date(localString + " GMT+0500");
+}
+
 /**
  * Create tomorrow's competition
- * Called by cron job at 01:00 UTC (allows users to enter for next day)
+ * Called by cron job at 23:59 PKT (Pakistan Standard Time)
  */
 async function createTomorrowCompetition() {
   try {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 2);
-    const dateString = tomorrow.toISOString().split("T")[0];
+    // Current time in Pakistan
+    const now = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Karachi" })
+    );
+
+    // Tomorrow in Pakistan
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const year = tomorrow.getFullYear();
+    const month = tomorrow.getMonth();
+    const day = tomorrow.getDate();
+
+    // Pakistan start/end times
+    const startTime = pakistanDate(year, month, day, 0, 0, 0); // 00:00 PKT (midnight)
+    const endTime = pakistanDate(year, month, day, 23, 59, 0); // 23:59 PKT (11:59 PM)
+
+    const dateString = startTime.toISOString().split("T")[0];
 
     // Check if competition already exists
     const existing = await Competition.findOne({ date: dateString });
@@ -210,21 +304,14 @@ async function createTomorrowCompetition() {
       return existing;
     }
 
-    // Set times for tomorrow
-    const startTime = new Date(tomorrow);
-    startTime.setUTCHours(0, 0, 0, 0);
+    // Entry window times based on Pakistan time
+    // Start accepting entries 1 hour from now
+    const entryStartTime = new Date(now);
+    entryStartTime.setHours(entryStartTime.getHours() + 1);
 
-    const endTime = new Date(tomorrow);
-    endTime.setUTCHours(23, 59, 0, 0); // Ends at 23:59:00 (same time as cron job)
+    // Close entries 1 hour before competition ends (22:59 PKT)
+    const entryEndTime = pakistanDate(year, month, day, 22, 59, 0);
 
-    // Entry window: Start 1 hour after creation, end 1 hour before competition starts
-    const entryStartTime = new Date(); // Current time when competition is created
-    entryStartTime.setHours(entryStartTime.getHours() + 1); // Start accepting entries 1 hour from now
-
-    const entryEndTime = new Date(startTime); // Competition start time
-    entryEndTime.setHours(entryEndTime.getHours() - 1); // Close entries 1 hour before competition starts
-
-    // Create competition
     const competition = await Competition.create({
       date: dateString,
       status: "upcoming",
@@ -238,7 +325,10 @@ async function createTomorrowCompetition() {
       totalVotes: 0,
     });
 
-    console.log(`✅ Created upcoming competition for ${dateString}`);
+    console.log(`🇵🇰 Created competition for ${dateString} (Pakistan Time)`);
+    console.log(`   Start: ${startTime.toISOString()} (00:00 PKT)`);
+    console.log(`   End: ${endTime.toISOString()} (23:59 PKT)`);
+    console.log(`   Entry Window: ${entryStartTime.toISOString()} to ${entryEndTime.toISOString()}`);
     return competition;
   } catch (error) {
     console.error("Error creating tomorrow's competition:", error);

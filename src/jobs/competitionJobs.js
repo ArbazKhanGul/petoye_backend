@@ -50,8 +50,11 @@ function initializeCompetitionJobs() {
         // Log error but don't crash the server
       }
     },
+    // {
+    //   timezone: "UTC",
+    // }
     {
-      timezone: "UTC",
+      timezone: "Asia/Karachi", // ★ Important
     }
   );
 
@@ -67,8 +70,11 @@ function initializeCompetitionJobs() {
         console.error("❌ Error updating competition statuses:", error);
       }
     },
+    // {
+    //   timezone: "UTC",
+    // }
     {
-      timezone: "UTC",
+      timezone: "Asia/Karachi", // ★ Important
     }
   );
 
