@@ -200,7 +200,7 @@ async function endCompetitionAndSelectWinners() {
 async function createTomorrowCompetition() {
   try {
     const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setDate(tomorrow.getDate() + 2);
     const dateString = tomorrow.toISOString().split("T")[0];
 
     // Check if competition already exists
