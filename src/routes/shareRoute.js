@@ -30,6 +30,41 @@ router.get("/post/:postId", shareController.sharePost);
 
 /**
  * @swagger
+ * /api/share/competition/{competitionId}/{entryId}:
+ *   get:
+ *     summary: Share competition entry with Open Graph meta tags
+ *     description: Returns HTML page with Open Graph tags for rich preview on social media
+ *     tags: [Share]
+ *     parameters:
+ *       - in: path
+ *         name: competitionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Competition ID
+ *       - in: path
+ *         name: entryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Competition entry ID
+ *     responses:
+ *       200:
+ *         description: HTML page with Open Graph meta tags
+ *         content:
+ *           text/html:
+ *             schema:
+ *               type: string
+ *       404:
+ *         description: Competition entry not found
+ */
+router.get(
+  "/competition/:competitionId/:entryId",
+  shareController.shareCompetitionEntry
+);
+
+/**
+ * @swagger
  * /api/share/pet/{petId}:
  *   get:
  *     summary: Share pet listing with Open Graph meta tags

@@ -90,6 +90,7 @@ exports.getPreviousWinners = async (req, res, next) => {
         },
       })
       .lean();
+    console.log("🚀 ~ lastCompetition:", lastCompetition);
 
     res.status(200).json({
       success: true,
@@ -110,6 +111,7 @@ exports.getCompetitionDetails = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const votedOnly = req.query.votedOnly === "true";
+    console.log("🚀 ~ votedOnly:", votedOnly);
     const skip = (page - 1) * limit;
 
     const competition = await Competition.findById(competitionId).lean();
@@ -130,12 +132,12 @@ exports.getCompetitionDetails = async (req, res, next) => {
 
       votedEntryIds = userVotes.map((v) => v.entryId);
     }
-    console.log("🚀 ~ userVotes:", userVotes);
-    console.log("🚀 ~ req.user._id:", req.user);
+    // console.log("🚀 ~ userVotes:", userVotes);
+    // console.log("🚀 ~ req.user._id:", req.user);
 
     // Build filter for entries based on votedOnly parameter
     let entryIdsFilter = {};
-    if (votedOnly && votedEntryIds.length > 0) {
+    if (votedOnly) {
       // Only show entries that user has voted for
       entryIdsFilter = { _id: { $in: votedEntryIds } };
     }
@@ -151,6 +153,7 @@ exports.getCompetitionDetails = async (req, res, next) => {
       .limit(limit)
       .populate("userId", "fullName username profileImage")
       .lean();
+    // console.log("🚀 ~ entries:", entries);
 
     // Get total entries count
     const totalEntries = await CompetitionEntry.countDocuments({
@@ -665,13 +668,22 @@ exports.getCompetitionsByStatus = async (req, res, next) => {
     }
 
     // Add date range filter if provided
+    // Note: date field is stored as string (YYYY-MM-DD), so we use string comparison
     if (startDate || endDate) {
       query.date = {};
       if (startDate) {
-        query.date.$gte = new Date(startDate);
+        // Convert to YYYY-MM-DD format if it's a Date object
+        const formattedStart = startDate.includes("T")
+          ? startDate.split("T")[0]
+          : startDate;
+        query.date.$gte = formattedStart;
       }
       if (endDate) {
-        query.date.$lte = new Date(endDate);
+        // Convert to YYYY-MM-DD format if it's a Date object
+        const formattedEnd = endDate.includes("T")
+          ? endDate.split("T")[0]
+          : endDate;
+        query.date.$lte = formattedEnd;
       }
     }
 
@@ -705,6 +717,12 @@ exports.getCompetitionsByStatus = async (req, res, next) => {
         },
       })
       .lean();
+    console.log(
+      "🚀 ~ competitions:",
+      competitions.map((ob) => {
+        console.log("🚀 ~ competition id:", ob.winners);
+      })
+    );
 
     // Get user's entry for each competition if user is authenticated
     let competitionsWithUserEntry = competitions;

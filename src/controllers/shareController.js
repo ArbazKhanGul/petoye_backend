@@ -1,6 +1,8 @@
 const Post = require("../models/post.model");
 const PetListing = require("../models/petListing.model");
 const User = require("../models/user.model");
+const CompetitionEntry = require("../models/competitionEntry.model");
+const Competition = require("../models/competition.model");
 
 /**
  * Generate HTML with Open Graph meta tags for post sharing
@@ -82,6 +84,55 @@ exports.sharePetListing = async (req, res) => {
   } catch (error) {
     console.error("Error generating pet share page:", error);
     res.status(500).send(generateErrorHTML("Failed to load pet listing"));
+  }
+};
+
+/**
+ * Generate HTML with Open Graph meta tags for competition entry sharing
+ */
+exports.shareCompetitionEntry = async (req, res) => {
+  try {
+    const { competitionId, entryId } = req.params;
+
+    const entry = await CompetitionEntry.findById(entryId)
+      .populate("userId", "fullName profileImage")
+      .lean();
+
+    if (!entry) {
+      return res
+        .status(404)
+        .send(generateErrorHTML("Competition entry not found"));
+    }
+
+    const competition = await Competition.findById(competitionId).lean();
+
+    if (!competition) {
+      return res.status(404).send(generateErrorHTML("Competition not found"));
+    }
+
+    // Get first image from entry
+    const imageUrl = entry.imageUrl
+      ? `${req.protocol}://${req.get("host")}${entry.imageUrl}`
+      : `${req.protocol}://${req.get("host")}/assets/petoye.png`;
+
+    const description = `Vote for ${entry.petName} in today's Daily Arena! Current votes: ${entry.voteCount}. Help them win! 🏆`;
+
+    const title = `${entry.petName} - ${
+      competition.title || "Daily Arena"
+    } - Petoye`;
+
+    const html = generateCompetitionEntryHTML(
+      competitionId,
+      entryId,
+      title,
+      description,
+      imageUrl
+    );
+
+    res.send(html);
+  } catch (error) {
+    console.error("Error generating competition entry share page:", error);
+    res.status(500).send(generateErrorHTML("Failed to load competition entry"));
   }
 };
 
@@ -414,6 +465,228 @@ function generateProfileHTML(userId, title, description, imageUrl) {
   return generatePostHTML(userId, title, description, imageUrl)
     .replace(/post\//g, "profile/")
     .replace(/petoye:\/\/post\//g, "petoye://profile/");
+}
+
+/**
+ * Generate HTML for competition entry
+ */
+function generateCompetitionEntryHTML(
+  competitionId,
+  entryId,
+  title,
+  description,
+  imageUrl
+) {
+  const logoUrl = `${process.env.API_URL}/assets/petoye.png`;
+  const appStoreUrl = "https://apps.apple.com/app/id123456789"; // Update with actual App Store URL
+  const playStoreUrl =
+    "https://play.google.com/store/apps/details?id=com.petoye";
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="${escapeHtml(title)}" />
+  <meta property="og:description" content="${escapeHtml(description)}" />
+  <meta property="og:image" content="${imageUrl}" />
+  <meta property="og:url" content="${
+    process.env.API_URL
+  }/share/competition/${competitionId}/${entryId}" />
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtml(title)}" />
+  <meta name="twitter:description" content="${escapeHtml(description)}" />
+  <meta name="twitter:image" content="${imageUrl}" />
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #000000;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      color: #ffffff;
+    }
+    
+    .container {
+      max-width: 500px;
+      background: #1a1a1a;
+      border-radius: 24px;
+      padding: 40px 30px;
+      box-shadow: 0 10px 50px rgba(255, 226, 89, 0.2);
+      text-align: center;
+      animation: slideUp 0.6s ease-out;
+    }
+    
+    .logo-container {
+      margin-bottom: 30px;
+    }
+    
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(255, 226, 89, 0.3);
+    }
+    
+    .preview-image {
+      width: 100%;
+      max-width: 400px;
+      height: 300px;
+      object-fit: cover;
+      border-radius: 16px;
+      margin: 20px auto;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    
+    .trophy {
+      font-size: 60px;
+      margin: 20px 0;
+      animation: bounce 1s infinite;
+    }
+    
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin: 20px 0 10px;
+      color: #FFE259;
+      line-height: 1.3;
+    }
+    
+    p {
+      font-size: 16px;
+      line-height: 1.6;
+      margin: 15px 0;
+      opacity: 0.9;
+      color: #e0e0e0;
+    }
+    
+    .cta-text {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 30px 0 20px;
+      color: #FFE259;
+    }
+    
+    .button {
+      display: inline-block;
+      background: linear-gradient(135deg, #FFE259 0%, #ffd000 100%);
+      color: #000000;
+      padding: 18px 50px;
+      border-radius: 30px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 16px;
+      margin: 10px 0;
+      transition: all 0.3s ease;
+      box-shadow: 0 6px 20px rgba(255, 226, 89, 0.4);
+    }
+    
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(255, 226, 89, 0.6);
+    }
+    
+    .store-links {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 20px;
+      align-items: center;
+    }
+    
+    .store-button {
+      display: inline-block;
+      background: #2a2a2a;
+      color: #ffffff;
+      padding: 14px 30px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      border: 1px solid #3a3a3a;
+      min-width: 200px;
+    }
+    
+    .store-button:hover {
+      background: #3a3a3a;
+      transform: translateY(-2px);
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+  </style>
+  
+  <script>
+    // Attempt deep link first
+    window.location.href = 'petoye://competition/${competitionId}/${entryId}';
+    
+    // If still on page after 2 seconds, show app store links
+    setTimeout(function() {
+      document.getElementById('appNotInstalled').style.display = 'block';
+      document.getElementById('openingApp').style.display = 'none';
+    }, 2000);
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-container">
+      <img src="${logoUrl}" alt="Petoye Logo" class="logo" />
+    </div>
+    
+    <img src="${imageUrl}" alt="Competition Entry" class="preview-image" onerror="this.style.display='none'" />
+    
+    <div class="trophy">🏆</div>
+    
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(description)}</p>
+    
+    <div id="openingApp">
+      <p class="cta-text">Opening Petoye...</p>
+    </div>
+    
+    <div id="appNotInstalled" style="display: none;">
+      <p class="cta-text">Don't have the app? Download Petoye now!</p>
+      <div class="store-links">
+        <a href="${playStoreUrl}" class="store-button">📱 Get on Google Play</a>
+        <a href="${appStoreUrl}" class="store-button">🍎 Get on App Store</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `;
 }
 
 /**

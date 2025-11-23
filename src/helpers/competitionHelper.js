@@ -96,20 +96,32 @@ async function endCompetitionAndSelectWinners() {
       return competition;
     }
 
-    // Calculate prizes based on number of entries
+    // Filter entries with votes > 0
+    const entriesWithVotes = topEntries.filter((entry) => entry.votesCount > 0);
+
+    if (entriesWithVotes.length === 0) {
+      // No one got any votes, mark as completed with no winners
+      competition.status = "completed";
+      competition.prizesDistributed = true;
+      await competition.save();
+      console.log(`Competition ${competition.date} completed with no votes`);
+      return competition;
+    }
+
+    // Calculate prizes based on number of entries WITH VOTES
     const prizePool = competition.prizePool;
     let prizes = [];
 
-    if (topEntries.length === 1) {
-      // Only 1 entry: winner gets 100%
+    if (entriesWithVotes.length === 1) {
+      // Only 1 entry with votes: winner gets 100%
       prizes = [prizePool];
-    } else if (topEntries.length === 2) {
-      // 2 entries: 67% and 33%
+    } else if (entriesWithVotes.length === 2) {
+      // 2 entries with votes: 67% and 33%
       const firstPrize = Math.floor(prizePool * 0.67);
       const secondPrize = prizePool - firstPrize;
       prizes = [firstPrize, secondPrize];
     } else {
-      // 3 or more entries: 50%, 30%, 20%
+      // 3 or more entries with votes: 50%, 30%, 20%
       const firstPrize = Math.floor(prizePool * 0.5);
       const secondPrize = Math.floor(prizePool * 0.3);
       const thirdPrize = prizePool - firstPrize - secondPrize;
@@ -118,9 +130,9 @@ async function endCompetitionAndSelectWinners() {
 
     const positions = ["first", "second", "third"];
 
-    // Distribute prizes and update winners
-    for (let i = 0; i < topEntries.length; i++) {
-      const entry = topEntries[i];
+    // Distribute prizes and update winners (only for entries with votes)
+    for (let i = 0; i < entriesWithVotes.length; i++) {
+      const entry = entriesWithVotes[i];
       const prize = prizes[i];
       const position = positions[i];
 
@@ -283,22 +295,27 @@ async function createTomorrowCompetition() {
       new Date().toLocaleString("en-US", { timeZone: "Asia/Karachi" })
     );
 
-    // Tomorrow in Pakistan
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Competition day is 2 days ahead (entries open tomorrow, competition runs day after)
+    const competitionDay = new Date(now);
+    competitionDay.setDate(competitionDay.getDate() + 2);
 
-    const year = tomorrow.getFullYear();
-    const month = tomorrow.getMonth();
-    const day = tomorrow.getDate();
+    const year = competitionDay.getFullYear();
+    const month = competitionDay.getMonth();
+    const day = competitionDay.getDate();
 
     // Pakistan start/end times
     const startTime = pakistanDate(year, month, day, 0, 0, 0); // 00:00 PKT (midnight)
     const endTime = pakistanDate(year, month, day, 23, 59, 0); // 23:59 PKT (11:59 PM)
 
-    const dateString = startTime.toISOString().split("T")[0];
+    // Use Pakistan date for dateString (YYYY-MM-DD format)
+    const dateString = `${year}-${String(month + 1).padStart(2, "0")}-${String(
+      day
+    ).padStart(2, "0")}`;
+    console.log("🚀 ~ createTomorrowCompetition ~ dateString:", dateString);
 
     // Check if competition already exists
     const existing = await Competition.findOne({ date: dateString });
+    console.log("🚀 ~ createTomorrowCompetition ~ existing:", existing);
     if (existing) {
       console.log(`Competition for ${dateString} already exists`);
       return existing;
@@ -328,7 +345,9 @@ async function createTomorrowCompetition() {
     console.log(`🇵🇰 Created competition for ${dateString} (Pakistan Time)`);
     console.log(`   Start: ${startTime.toISOString()} (00:00 PKT)`);
     console.log(`   End: ${endTime.toISOString()} (23:59 PKT)`);
-    console.log(`   Entry Window: ${entryStartTime.toISOString()} to ${entryEndTime.toISOString()}`);
+    console.log(
+      `   Entry Window: ${entryStartTime.toISOString()} to ${entryEndTime.toISOString()}`
+    );
     return competition;
   } catch (error) {
     console.error("Error creating tomorrow's competition:", error);

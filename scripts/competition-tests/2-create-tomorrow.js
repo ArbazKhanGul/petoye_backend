@@ -20,7 +20,7 @@ async function run() {
   try {
     // Calculate tomorrow's date
     const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setDate(tomorrow.getDate() + 2);
     const tomorrowDate = tomorrow.toISOString().split("T")[0];
 
     // Check if already exists

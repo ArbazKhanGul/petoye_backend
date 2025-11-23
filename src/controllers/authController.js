@@ -36,7 +36,7 @@ exports.register = async (req, res, next) => {
     // Check for existing email including recently deleted accounts
     const existingUser = await User.findOne({
       $or: [
-        { email, emailVerify: true },
+        { email },
         // Check for deleted accounts with original email
         {
           email,
@@ -54,6 +54,7 @@ exports.register = async (req, res, next) => {
       ],
     });
 
+    console.log("🚀 ~ existingUser:", existingUser);
     if (existingUser) {
       if (!existingUser.emailVerify && !existingUser.isDeleted) {
         // Delete unverified user with same email
